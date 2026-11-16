@@ -1,14 +1,13 @@
 import { PrismaClient } from "@prisma/client";
+import { hash } from "bcryptjs";
 
 const db = new PrismaClient();
 
 const categories = [
-  { name: "Repas", slug: "repas", icon: "🍲", position: 1 },
-  { name: "Matériel scolaire", slug: "materiel-scolaire", icon: "✏️", position: 2 },
-  { name: "Téléphones", slug: "telephones", icon: "📱", position: 3 },
-  { name: "Informatique", slug: "informatique", icon: "💻", position: 4 },
-  { name: "Mode", slug: "mode", icon: "👕", position: 5 },
-  { name: "Beauté & parfums", slug: "beaute", icon: "🧴", position: 6 },
+  { name: "Fournitures scolaires / Papeterie", slug: "fournitures-scolaires", icon: "✏️", position: 1 },
+  { name: "Vêtements & Mode", slug: "vetements-mode", icon: "👕", position: 2 },
+  { name: "High-Tech & Accessoires", slug: "high-tech", icon: "💻", position: 3 },
+  { name: "Alimentation & Divers", slug: "alimentation-divers", icon: "🍲", position: 4 },
 ];
 
 type SeedProduct = {
@@ -29,6 +28,7 @@ const vendors: Array<{
   email: string;
   phone: string;
   fullName: string;
+  password: string;
   shopName: string;
   slug: string;
   description: string;
@@ -38,9 +38,10 @@ const vendors: Array<{
   products: SeedProduct[];
 }> = [
   {
-    email: "fatou@2ie-edu.org",
+    email: "fatou.ouedraogo@2ie-edu.org",
     phone: "+22670112233",
     fullName: "Fatou Ouédraogo",
+    password: "Demo2024!",
     shopName: "Chez Fatou",
     slug: "chez-fatou",
     description: "Repas maison et en-cas, préparés sur le campus. Commande la veille, retrait le soir.",
@@ -49,31 +50,25 @@ const vendors: Array<{
     momoOperator: "ORANGE_MONEY",
     products: [
       {
-        slug: "caracolo-soir",
-        name: "Caracolo du soir (portion)",
+        slug: "cahier-300-pages",
+        name: "Cahier 300 pages (grand format)",
         description:
-          "Attiéké, thon, tomate et piment maison. Préparation quotidienne à partir de 18h. Réservation obligatoire avant 16h.",
-        priceXof: 500,
-        stockMode: "TRACKED",
-        stockQty: 12,
-        lowStockThreshold: 3,
-        isReservable: true,
-        pickupNote: "Retrait à la chambre B214 entre 19h et 21h",
-        image: "/produits/caracolo.svg",
-        categorySlug: "repas",
+          "Couverture rigide, papier 80 g. Vendu à l'unité, parfait pour les cours magistraux.",
+        priceXof: 1200,
+        stockMode: "UNLIMITED",
+        image: "/produits/cahier.svg",
+        categorySlug: "fournitures-scolaires",
       },
       {
-        slug: "riz-gras-poulet",
-        name: "Riz gras + poulet",
-        description: "Riz gras, cuisse de poulet braisée, salade fraîche. Portion généreuse.",
-        priceXof: 1500,
+        slug: "bloc-notes-a4",
+        name: "Bloc-notes A4 (100 feuilles)",
+        description: "Bloc de papier ligné A4, perforé. Idéal pour prendre des notes en cours.",
+        priceXof: 800,
         stockMode: "TRACKED",
-        stockQty: 2,
-        lowStockThreshold: 3,
-        isReservable: true,
-        pickupNote: "Retrait B214 à partir de 12h",
-        image: "/produits/riz.svg",
-        categorySlug: "repas",
+        stockQty: 15,
+        lowStockThreshold: 5,
+        image: "/produits/cahier.svg",
+        categorySlug: "fournitures-scolaires",
       },
       {
         slug: "sachet-jus-bissap",
@@ -82,65 +77,65 @@ const vendors: Array<{
         priceXof: 300,
         stockMode: "UNLIMITED",
         image: "/produits/bissap.svg",
-        categorySlug: "repas",
+        categorySlug: "alimentation-divers",
       },
     ],
   },
   {
-    email: "kore@2ie-edu.org",
+    email: "ibrahim.kore@2ie-edu.org",
     phone: "+22676554433",
     fullName: "Ibrahim Korè",
+    password: "Demo2024!",
     shopName: "Tech Korè",
     slug: "tech-kore",
-    description: "Téléphones, ordinateurs et accessoires testés. Garantie 7 jours sur place.",
+    description: "High-Tech et accessoires testés. Garantie 7 jours sur place.",
     roomNumber: null,
     momoNumber: "+22676554433",
     momoOperator: "MOOV_MONEY",
     products: [
-      {
-        slug: "tecno-spark-20",
-        name: "Tecno Spark 20 (128 Go)",
-        description: "Occasion en très bon état, batterie saine, écran sans rayure. Chargeur inclus.",
-        priceXof: 62000,
-        stockMode: "TRACKED",
-        stockQty: 1,
-        lowStockThreshold: 2,
-        image: "/produits/telephone.svg",
-        categorySlug: "telephones",
-      },
-      {
-        slug: "hp-elitebook-840",
-        name: "HP EliteBook 840 G5",
-        description: "i5 8e génération, 8 Go RAM, SSD 256 Go. Idéal pour la CAO et les TP. Windows 11 installé.",
-        priceXof: 185000,
-        stockMode: "TRACKED",
-        stockQty: 3,
-        lowStockThreshold: 2,
-        isReservable: true,
-        pickupNote: "Test possible avant achat, sur rendez-vous",
-        image: "/produits/ordinateur.svg",
-        categorySlug: "informatique",
-      },
       {
         slug: "cle-usb-32go",
         name: "Clé USB 32 Go",
         description: "USB 3.0, neuve, sous blister. Parfaite pour les TP et les rendus de rapports.",
         priceXof: 3500,
         stockMode: "TRACKED",
-        stockQty: 0,
+        stockQty: 8,
         lowStockThreshold: 3,
         image: "/produits/cle-usb.svg",
-        categorySlug: "informatique",
+        categorySlug: "high-tech",
+      },
+      {
+        slug: "ecouteurs-bluetooth",
+        name: "Écouteurs Bluetooth sans fil",
+        description: "Autonomie 6h, micro intégré, compatibles tous smartphones. Boîte de charge incluse.",
+        priceXof: 12000,
+        stockMode: "TRACKED",
+        stockQty: 3,
+        lowStockThreshold: 2,
+        image: "/produits/telephone.svg",
+        categorySlug: "high-tech",
+      },
+      {
+        slug: "pochette-ordinateur-15",
+        name: "Pochette ordinateur 15 pouces",
+        description: "Protection matelassée, poche extérieure pour chargeur et câbles. Résistante à l'eau.",
+        priceXof: 7500,
+        stockMode: "TRACKED",
+        stockQty: 5,
+        lowStockThreshold: 2,
+        image: "/produits/ordinateur.svg",
+        categorySlug: "high-tech",
       },
     ],
   },
   {
-    email: "awa@2ie-edu.org",
+    email: "awa.sawadogo@2ie-edu.org",
     phone: "+22671223344",
     fullName: "Awa Sawadogo",
+    password: "Demo2024!",
     shopName: "Awa Style",
     slug: "awa-style",
-    description: "Vêtements, chaussures et parfums. Livraison chambre à chambre sur le campus.",
+    description: "Vêtements et mode locale. Livraison chambre à chambre sur le campus.",
     roomNumber: "Bât. F, ch. 108",
     momoNumber: "+22671223344",
     momoOperator: "ORANGE_MONEY",
@@ -154,27 +149,31 @@ const vendors: Array<{
         stockQty: 4,
         lowStockThreshold: 3,
         image: "/produits/chemise.svg",
-        categorySlug: "mode",
+        categorySlug: "vetements-mode",
       },
       {
-        slug: "parfum-oud-50ml",
-        name: "Parfum Oud intense (50 ml)",
-        description: "Eau de parfum orientale, tenue longue durée. Flacon scellé.",
-        priceXof: 8500,
+        slug: "tshirt-2ie",
+        name: "T-shirt 2iE officiel",
+        description: "T-shirt en coton, logo 2iE brodé. Tailles S à XXL disponibles.",
+        priceXof: 5000,
         stockMode: "TRACKED",
-        stockQty: 5,
-        lowStockThreshold: 2,
-        image: "/produits/parfum.svg",
-        categorySlug: "beaute",
+        stockQty: 10,
+        lowStockThreshold: 3,
+        image: "/produits/chemise.svg",
+        categorySlug: "vetements-mode",
       },
       {
-        slug: "cahier-300-pages",
-        name: "Cahier 300 pages (grand format)",
-        description: "Couverture rigide, papier 80 g. Vendu à l'unité, parfait pour les cours magistraux.",
-        priceXof: 1200,
-        stockMode: "UNLIMITED",
-        image: "/produits/cahier.svg",
-        categorySlug: "materiel-scolaire",
+        slug: "tenue-locale-femme",
+        name: "Ensemble complet tenue locale (femme)",
+        description: "Pagne tissé + haut assorti. Fait sur mesure, délai 3 jours.",
+        priceXof: 25000,
+        stockMode: "TRACKED",
+        stockQty: 2,
+        lowStockThreshold: 1,
+        isReservable: true,
+        pickupNote: "Sur mesure - confirmer les mensurations par WhatsApp",
+        image: "/produits/chemise.svg",
+        categorySlug: "vetements-mode",
       },
     ],
   },
@@ -193,12 +192,15 @@ async function main() {
   for (const vendor of vendors) {
     console.log(`→ Vendeur ${vendor.shopName}`);
 
+    const hashedPassword = await hash(vendor.password, 10);
+
     const user = await db.user.upsert({
       where: { email: vendor.email },
-      update: { fullName: vendor.fullName, phone: vendor.phone, role: "VENDOR" },
+      update: { fullName: vendor.fullName, phone: vendor.phone, role: "VENDOR", password: hashedPassword },
       create: {
         email: vendor.email,
         phone: vendor.phone,
+        password: hashedPassword,
         fullName: vendor.fullName,
         role: "VENDOR",
         campusRoom: vendor.roomNumber,
@@ -255,12 +257,14 @@ async function main() {
   }
 
   console.log("→ Client de démonstration");
+  const clientPassword = await hash("Client2024!", 10);
   await db.user.upsert({
     where: { email: "etudiant@2ie.bf" },
-    update: {},
+    update: { password: clientPassword },
     create: {
       email: "etudiant@2ie.bf",
       phone: "+22670000000",
+      password: clientPassword,
       fullName: "Étudiant Démo",
       role: "CLIENT",
       campusRoom: "Bât. A, ch. 101",
@@ -268,6 +272,9 @@ async function main() {
   });
 
   console.log("✓ Base de données initialisée");
+  console.log("Comptes de démonstration :");
+  console.log("  Vendeurs : email format prenom.nom@2ie-edu.org / mot de passe: Demo2024!");
+  console.log("  Client : etudiant@2ie.bf / mot de passe: Client2024!");
 }
 
 main()
