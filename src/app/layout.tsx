@@ -1,0 +1,103 @@
+import type { Metadata, Viewport } from "next";
+import Link from "next/link";
+import "./globals.css";
+import { getCurrentUser } from "@/lib/auth";
+import { appUrl } from "@/lib/domain";
+import { ServiceWorkerRegister } from "@/components/service-worker-register";
+import { logoutAction } from "@/server/actions/auth";
+
+export const metadata: Metadata = {
+  metadataBase: new URL(appUrl()),
+  title: {
+    default: "2iE Market — la marketplace du campus",
+    template: "%s · 2iE Market",
+  },
+  description:
+    "Commande et réserve auprès des commerçants de l'Institut 2iE : repas, matériel scolaire, téléphones, ordinateurs, vêtements et parfums.",
+  applicationName: "2iE Market",
+  manifest: "/manifest.webmanifest",
+  // iOS n'utilise pas le manifest pour l'installation : ces balises permettent
+  // « Sur l'écran d'accueil » puis un lancement en plein écran sans barre Safari.
+  appleWebApp: {
+    capable: true,
+    title: "2iE Market",
+    statusBarStyle: "default",
+  },
+  formatDetection: { telephone: false },
+  // Next 16 n'émet plus que `mobile-web-app-capable` : Safari a besoin de la
+  // variante `apple-` pour ouvrir l'app installée en plein écran.
+  other: { "apple-mobile-web-app-capable": "yes" },
+  openGraph: {
+    type: "website",
+    locale: "fr_BF",
+    siteName: "2iE Market",
+    title: "2iE Market — la marketplace du campus",
+    description: "Les commerçants de 2iE, réunis au même endroit.",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0f766e",
+};
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const user = await getCurrentUser();
+
+  return (
+    <html lang="fr">
+      <body className="flex min-h-dvh flex-col">
+        <header className="sticky top-0 z-30 border-b border-slate-200 bg-stone-50/90 backdrop-blur">
+          <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-3">
+            <Link href="/" className="flex items-center gap-2 font-bold text-teal-800">
+              <span className="grid size-9 place-items-center rounded-xl bg-teal-700 text-sm text-white">
+                2iE
+              </span>
+              <span className="text-lg tracking-tight">Market</span>
+            </Link>
+
+            <nav className="ml-auto flex items-center gap-1 text-sm">
+              <Link href="/" className="btn-ghost hidden sm:inline-flex">
+                Catalogue
+              </Link>
+              <Link href="/espace-vendeur" className="btn-ghost">
+                Espace vendeur
+              </Link>
+
+              {user ? (
+                <div className="flex items-center gap-1">
+                  <Link href="/mes-commandes" className="btn-ghost !px-2 !text-xs sm:!text-sm">
+                    Mes commandes
+                  </Link>
+                  <span className="hidden max-w-32 truncate px-2 text-slate-500 md:block">
+                    {user.fullName.split(" ")[0]}
+                  </span>
+                  <form action={logoutAction}>
+                    <button type="submit" className="btn-secondary !py-2 !text-xs">
+                      Déconnexion
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                <Link href="/connexion" className="btn-primary !py-2 !text-xs">
+                  Se connecter
+                </Link>
+              )}
+            </nav>
+          </div>
+        </header>
+
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
+
+        <footer className="border-t border-slate-200 px-4 py-8 text-center text-xs text-slate-500">
+          <p>2iE Market — projet étudiant de l'Institut 2iE, Ouagadougou.</p>
+          <p className="mt-1">Paiement à la réception disponible · Mobile Money en préparation.</p>
+        </footer>
+
+        <ServiceWorkerRegister />
+      </body>
+    </html>
+  );
+}

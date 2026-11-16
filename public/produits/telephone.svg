@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800" role="img" aria-label="Téléphone">
+  <rect width="800" height="800" fill="#EFF6FF"/>
+  <rect x="290" y="180" width="220" height="420" rx="36" fill="#1D4ED8"/>
+  <rect x="315" y="220" width="170" height="330" rx="12" fill="#DBEAFE"/>
+  <text x="400" y="700" font-family="sans-serif" font-size="44" font-weight="700" fill="#1E3A8A" text-anchor="middle">Téléphone</text>
+</svg>

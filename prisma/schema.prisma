@@ -1,0 +1,264 @@
+// Schéma de la marketplace 2iE.
+//
+// Base de données : PostgreSQL (hébergé sur Supabase en production).
+//   1. Renseigner DATABASE_URL dans .env (voir .env.example)
+//   2. npx prisma db push        (crée les tables)
+//   3. npm run db:seed           (données de démonstration)
+// Pour revenir ponctuellement à SQLite en local : remplacer le provider par
+// "sqlite" et DATABASE_URL par "file:./dev.db".
+//
+// Les champs de statut sont des String plutôt que des enums natifs afin de rester
+// portables entre les deux moteurs. Les valeurs autorisées sont définies et
+// validées dans src/lib/domain.ts.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identité
+// ---------------------------------------------------------------------------
+
+model User {
+  id        String   @id @default(cuid())
+  email     String?  @unique
+  phone     String?  @unique
+  fullName  String
+  role      String   @default("CLIENT") // CLIENT | VENDOR | ADMIN
+  campusRoom String?
+  createdAt DateTime @default(now())
+
+  vendor  VendorProfile?
+  orders  Order[]         @relation("BuyerOrders")
+  reviews Review[]
+}
+
+model VendorProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  shopName    String
+  slug        String   @unique
+  description String?
+  logoUrl     String?
+  roomNumber  String? // champ facultatif du cahier des charges
+  momoNumber  String? // paiement direct au vendeur (MVP)
+  momoOperator String? // ORANGE_MONEY | MOOV_MONEY
+  isActive    Boolean  @default(true)
+  isVerified  Boolean  @default(false)
+  ratingAvg   Float    @default(0)
+  ratingCount Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products   Product[]
+  orders     Order[]
+  shareLinks ShareLink[]
+}
+
+// ---------------------------------------------------------------------------
+// Catalogue
+// ---------------------------------------------------------------------------
+
+model Category {
+  id       String  @id @default(cuid())
+  name     String
+  slug     String  @unique
+  icon     String?
+  position Int     @default(0)
+
+  products Product[]
+}
+
+model Product {
+  id                String   @id @default(cuid())
+  vendorId          String
+  categoryId        String?
+  name              String
+  slug              String   @unique
+  description       String
+  priceXof          Int
+  stockMode         String   @default("TRACKED") // TRACKED | UNLIMITED | OUT_OF_STOCK
+  stockQty          Int      @default(0)
+  lowStockThreshold Int      @default(3)
+  isActive          Boolean  @default(true)
+  isReservable      Boolean  @default(false)
+  pickupNote        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  vendor         VendorProfile   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  category       Category?       @relation(fields: [categoryId], references: [id])
+  images         ProductImage[]
+  orderItems     OrderItem[]
+  reviews        Review[]
+  shareLinks     ShareLink[]
+  stockMovements StockMovement[]
+
+  @@index([vendorId, isActive])
+  @@index([categoryId])
+}
+
+model ProductImage {
+  id        String @id @default(cuid())
+  productId String
+  url       String
+  position  Int    @default(0)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model StockMovement {
+  id        String   @id @default(cuid())
+  productId String
+  delta     Int
+  reason    String // SALE | RESTOCK | MANUAL_ADJUST | CANCEL
+  orderId   String?
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, createdAt])
+}
+
+model ShareLink {
+  id               String   @id @default(cuid())
+  code             String   @unique
+  productId        String
+  vendorId         String
+  channel          String   @default("whatsapp")
+  opensCount       Int      @default(0)
+  conversionsCount Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  product Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  vendor  VendorProfile @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  orders  Order[]
+}
+
+// ---------------------------------------------------------------------------
+// Commandes et réservations
+// ---------------------------------------------------------------------------
+
+model Order {
+  id            String   @id @default(cuid())
+  reference     String   @unique // "2IE-8F3K2A"
+  buyerId       String
+  vendorId      String
+  shareLinkId   String?
+  type          String   @default("DIRECT") // DIRECT | RESERVATION
+  status        String   @default("AWAITING_PAYMENT")
+  paymentStatus String   @default("UNPAID")
+  subtotalXof   Int
+  feesXof       Int      @default(0)
+  totalXof      Int
+  currency      String   @default("XOF")
+  buyerName     String
+  buyerPhone    String
+  buyerRoom     String?
+  buyerNote     String?
+  pickupSlot    String?
+  expiresAt     DateTime?
+  confirmedAt   DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  buyer     User          @relation("BuyerOrders", fields: [buyerId], references: [id])
+  vendor    VendorProfile @relation(fields: [vendorId], references: [id])
+  shareLink ShareLink?    @relation(fields: [shareLinkId], references: [id])
+  items     OrderItem[]
+  payments  Payment[]
+
+  @@index([vendorId, status, createdAt])
+  @@index([buyerId, createdAt])
+}
+
+model OrderItem {
+  id              String @id @default(cuid())
+  orderId         String
+  productId       String
+  quantity        Int
+  unitPriceXof    Int
+  productSnapshot String // JSON sérialisé : nom, image, prix au moment de l'achat
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+  review  Review?
+
+  @@index([orderId])
+}
+
+// ---------------------------------------------------------------------------
+// Paiement
+// ---------------------------------------------------------------------------
+
+model Payment {
+  id             String    @id @default(cuid())
+  orderId        String
+  provider       String // CASH | CINETPAY | LIGDICASH | FEDAPAY
+  operator       String? // ORANGE_MONEY | MOOV_MONEY
+  idempotencyKey String // clé générée côté client, réutilisée en cas de retry
+  merchantRef    String    @unique // référence envoyée au PSP
+  amountXof      Int
+  currency       String    @default("XOF")
+  status         String    @default("CREATED") // CREATED | PENDING | SUCCEEDED | FAILED | EXPIRED | REFUNDED
+  providerTxnId  String?   @unique
+  checkoutUrl    String?
+  notifyToken    String? // jeton de notification (CinetPay)
+  attemptNo      Int       @default(1)
+  lastError      String?
+  rawInitPayload  String?
+  rawFinalPayload String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  confirmedAt    DateTime?
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, idempotencyKey])
+  @@index([status, createdAt])
+}
+
+model PaymentEvent {
+  id             String    @id @default(cuid())
+  paymentId      String?
+  provider       String
+  providerEventId String
+  eventType      String?
+  payload        String
+  signatureValid Boolean
+  processedAt    DateTime?
+  processingError String?
+  receivedAt     DateTime  @default(now())
+
+  @@unique([provider, providerEventId])
+}
+
+// ---------------------------------------------------------------------------
+// Avis
+// ---------------------------------------------------------------------------
+
+model Review {
+  id          String   @id @default(cuid())
+  productId   String
+  orderItemId String   @unique // garantit l'achat vérifié
+  buyerId     String
+  rating      Int
+  comment     String?
+  isVisible   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  buyer     User      @relation(fields: [buyerId], references: [id])
+
+  @@unique([buyerId, productId])
+  @@index([productId, createdAt])
+}

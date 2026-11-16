@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800" role="img" aria-label="Chemise">
+  <rect width="800" height="800" fill="#FFF7ED"/>
+  <path d="M320 260 L400 300 L480 260 L560 320 L520 420 L480 400 L480 560 L320 560 L320 400 L280 420 L240 320 Z" fill="#EA580C"/>
+  <text x="400" y="700" font-family="sans-serif" font-size="44" font-weight="700" fill="#9A3412" text-anchor="middle">Chemise</text>
+</svg>
