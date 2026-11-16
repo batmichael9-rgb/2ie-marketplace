@@ -28,6 +28,7 @@ model User {
   id        String   @id @default(cuid())
   email     String?  @unique
   phone     String?  @unique
+  password  String   // Mot de passe hashé avec bcrypt
   fullName  String
   role      String   @default("CLIENT") // CLIENT | VENDOR | ADMIN
   campusRoom String?
