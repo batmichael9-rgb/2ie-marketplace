@@ -14,80 +14,12 @@ import {
   deleteProductSchema,
   productSchema,
   stockUpdateSchema,
-  vendorEmailSchema,
   vendorProfileSchema,
 } from "@/lib/validators";
 
 // ---------------------------------------------------------------------------
 // Boutique
 // ---------------------------------------------------------------------------
-
-export async function createVendorProfileAction(formData: FormData) {
-  const user = await requireUser("/espace-vendeur/creer");
-  if (user.vendor) redirect("/espace-vendeur");
-
-  // Vendre est réservé aux adresses @2ie-edu.org : sans cette règle, n'importe
-  // quel compte créé avec une adresse personnelle pourrait ouvrir une boutique.
-  const emailCheck = vendorEmailSchema.safeParse(user.email ?? "");
-  if (!emailCheck.success) {
-    redirect(
-      `/espace-vendeur/creer?erreur=${encodeURIComponent(
-        emailCheck.error.issues[0]?.message ??
-          "Pour vendre, connecte-toi avec une adresse @2ie-edu.org (format requis : prenom.nom@2ie-edu.org).",
-      )}`,
-    );
-  }
-
-  const parsed = vendorProfileSchema.safeParse({
-    shopName: formData.get("shopName"),
-    description: formData.get("description"),
-    roomNumber: formData.get("roomNumber"),
-    momoNumber: formData.get("momoNumber"),
-    momoOperator: formData.get("momoOperator") || undefined,
-  });
-
-  if (!parsed.success) {
-    const message = parsed.error.issues[0]?.message ?? "Formulaire incomplet";
-    redirect(`/espace-vendeur/creer?erreur=${encodeURIComponent(message)}`);
-  }
-
-  const data = parsed.data;
-  const base = slugify(data.shopName) || "boutique";
-  let slug = base;
-
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const exists = await db.vendorProfile.findUnique({ where: { slug }, select: { id: true } });
-    if (!exists) break;
-    slug = `${base}-${Math.floor(1000 + Math.random() * 9000)}`;
-  }
-
-  try {
-    await db.$transaction([
-      db.vendorProfile.create({
-        data: {
-          userId: user.id,
-          shopName: data.shopName,
-          slug,
-          description: data.description || null,
-          roomNumber: data.roomNumber || null,
-          momoNumber: data.momoNumber || null,
-          momoOperator: data.momoOperator ?? null,
-        },
-      }),
-      db.user.update({ where: { id: user.id }, data: { role: "VENDOR" } }),
-    ]);
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      redirect(
-        `/espace-vendeur/creer?erreur=${encodeURIComponent("Tu as déjà une boutique.")}`,
-      );
-    }
-    throw error;
-  }
-
-  revalidatePath("/espace-vendeur");
-  redirect("/espace-vendeur");
-}
 
 /**
  * Modification des informations de la boutique depuis le tableau de bord.
