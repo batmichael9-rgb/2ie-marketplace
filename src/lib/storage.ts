@@ -53,15 +53,17 @@ export async function uploadProductImage(file: File): Promise<string> {
 
   const bucket = process.env.SUPABASE_STORAGE_BUCKET?.trim() || "products";
   const objectPath = `${new Date().toISOString().slice(0, 10)}/${randomUUID()}.${extension}`;
-  const body = await file.arrayBuffer();
+  const body = Buffer.from(await file.arrayBuffer());
+  const endpoint = `${supabaseUrl}/storage/v1/object/${bucket}/${objectPath}`;
 
   const upload = () =>
-    fetch(`${supabaseUrl}/storage/v1/object/${bucket}/${objectPath}`, {
+    fetch(endpoint, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${serviceKey}`,
+        apikey: serviceKey,
         "Content-Type": file.type,
-        "x-upsert": "false",
+        "x-upsert": "true",
       },
       body,
       cache: "no-store",
@@ -75,10 +77,11 @@ export async function uploadProductImage(file: File): Promise<string> {
   if (response.status === 400 || response.status === 404) {
     const detail = await response.clone().text();
     if (/bucket/i.test(detail)) {
-      await fetch(`${supabaseUrl}/storage/v1/bucket`, {
+      const created = await fetch(`${supabaseUrl}/storage/v1/bucket`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${serviceKey}`,
+          apikey: serviceKey,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -89,14 +92,28 @@ export async function uploadProductImage(file: File): Promise<string> {
         }),
         cache: "no-store",
       });
+
+      if (!created.ok) {
+        console.error(
+          `Création du bucket Supabase « ${bucket} » : HTTP ${created.status} —`,
+          (await created.text()) || "(réponse vide)",
+        );
+      }
+
       response = await upload();
     }
   }
 
   if (!response.ok) {
-    console.error("Supabase Storage :", response.status, await response.text());
+    const detail = (await response.text()).trim();
+    console.error(
+      `Supabase Storage : POST ${endpoint} → HTTP ${response.status} —`,
+      detail || "(réponse vide)",
+    );
     throw new ImageUploadError(
-      "La photo n'a pas pu être envoyée. Vérifie ta connexion et réessaie.",
+      `Supabase Storage a refusé la photo (HTTP ${response.status}) : ${
+        detail || "réponse vide"
+      }`,
     );
   }
 
