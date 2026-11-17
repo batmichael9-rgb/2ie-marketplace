@@ -39,6 +39,21 @@ model User {
   reviews Review[]
 }
 
+/// Code à usage unique (OTP) envoyé par email pour l'inscription ou la
+/// réinitialisation du mot de passe. Seul le hash bcrypt est stocké.
+model OtpCode {
+  id         String    @id @default(cuid())
+  email      String
+  purpose    String // SIGNUP | RESET
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([email, purpose, createdAt])
+}
+
 model VendorProfile {
   id          String   @id @default(cuid())
   userId      String   @unique

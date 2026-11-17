@@ -61,9 +61,39 @@ CINETPAY_API_URL="https://api-checkout.cinetpay.com/v2"
 
 # Commission plateforme en points de base (100 = 1%)
 PLATFORM_FEE_BPS="0"
+
+# Photos produits (Supabase Storage)
+SUPABASE_URL="https://<project-ref>.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY=""
+SUPABASE_STORAGE_BUCKET="products"
+
+# Codes OTP par email (Resend ou Brevo)
+RESEND_API_KEY=""
+# BREVO_API_KEY=""
+EMAIL_FROM="2iE Market <onboarding@resend.dev>"
 ```
 
-### 4. Synchroniser la base de données
+### 4. Stockage des photos et envoi des emails
+
+Les photos produits ne sont pas écrites sur le disque (Vercel est en lecture
+seule) : elles sont envoyées dans un bucket public Supabase Storage.
+
+1. Supabase > **Project Settings > API** : copier l'URL du projet et la clé
+   **service_role** dans `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY`.
+2. Le bucket `products` (public) est créé automatiquement au premier envoi,
+   ou manuellement dans **Storage > New bucket** (cocher « Public »).
+3. Créer une clé API sur [Resend](https://resend.com) ou
+   [Brevo](https://brevo.com), puis la placer dans `RESEND_API_KEY` ou
+   `BREVO_API_KEY` et renseigner `EMAIL_FROM`.
+
+> **Resend** offre 3 000 emails/mois mais, sans domaine vérifié, l'adresse
+> `onboarding@resend.dev` ne peut écrire qu'au propriétaire du compte. Pour
+> envoyer les codes à tous les utilisateurs (dont les adresses
+> `@2ie-edu.org`), il faut vérifier un domaine. **Brevo** (300 emails/jour)
+> permet de démarrer sans domaine en vérifiant simplement une adresse
+> expéditrice.
+
+### 5. Synchroniser la base de données
 
 **⚠️ ATTENTION** : Ces commandes vont réinitialiser complètement votre base de données !
 
@@ -75,7 +105,7 @@ npx prisma db push
 npm run db:seed
 ```
 
-### 5. Lancer en développement
+### 6. Lancer en développement
 
 ```bash
 npm run dev
@@ -104,6 +134,9 @@ Après avoir exécuté `npm run db:seed`, les comptes suivants sont disponibles 
 1. Créer un projet sur [Supabase](https://supabase.com)
 2. Récupérer la **Connection String** (Session Pooler recommandé)
 3. Mettre à jour `DATABASE_URL` dans les variables d'environnement
+4. Créer un bucket **public** `products` dans **Storage** (ou laisser la
+   création automatique au premier envoi) et renseigner `SUPABASE_URL`,
+   `SUPABASE_SERVICE_ROLE_KEY` et `SUPABASE_STORAGE_BUCKET`
 
 ### 2. Générer un secret de session
 
@@ -156,6 +189,28 @@ Pour activer les paiements Mobile Money :
 - **Email accepté** : N'importe quelle adresse email valide
 - Pas de restriction de domaine
 
+## 🔐 Vérification par code OTP
+
+L'inscription (clients **et** vendeurs) et la réinitialisation du mot de
+passe se font en deux étapes :
+
+1. L'utilisateur saisit son email. Un code à **6 chiffres**, valable
+   **10 minutes**, est envoyé par email. Les vendeurs doivent utiliser
+   `prenom.nom@2ie-edu.org` ; les clients peuvent utiliser n'importe quelle
+   adresse valide.
+2. L'utilisateur saisit le code, choisit son mot de passe (hash bcrypt coût
+   12) et complète son profil (prénom, nom, et nom de boutique pour un
+   vendeur).
+
+Sécurité : seul le hash bcrypt du code est stocké, un code ne peut être
+utilisé qu'une fois, 5 tentatives maximum, et une minute d'attente entre deux
+envois. En développement, si aucun service email n'est configuré, le code est
+affiché dans la console du serveur.
+
+Le lien **« Mot de passe oublié ? »** de la page de connexion suit le même
+parcours et permet aussi aux comptes historiques (sans mot de passe) d'en
+définir un.
+
 ## 📱 PWA (Progressive Web App)
 
 L'application est installable sur mobile et desktop :
@@ -172,7 +227,6 @@ L'application est installable sur mobile et desktop :
 │   ├── schema.prisma       # Schéma de base de données
 │   └── seed.ts             # Données de démonstration
 ├── public/
-│   ├── uploads/            # Images produits (local)
 │   ├── sw.js               # Service worker PWA
 │   └── offline.html        # Page hors ligne
 ├── src/

@@ -9,12 +9,12 @@ export const metadata: Metadata = { title: "Connexion" };
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ erreur?: string; suivant?: string }>;
+  searchParams: Promise<{ erreur?: string; message?: string; suivant?: string }>;
 }) {
   const user = await getCurrentUser();
   if (user) redirect("/");
 
-  const { erreur, suivant } = await searchParams;
+  const { erreur, message, suivant } = await searchParams;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -37,6 +37,12 @@ export default async function LoginPage({
         {erreur ? (
           <div className="mt-8 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">
             {erreur}
+          </div>
+        ) : null}
+
+        {message ? (
+          <div className="mt-8 rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3 text-sm text-emerald-800">
+            {message}
           </div>
         ) : null}
 
@@ -64,10 +70,12 @@ export default async function LoginPage({
               <label htmlFor="password" className="block text-sm font-medium text-slate-700">
                 Mot de passe
               </label>
-              {/* Lien mot de passe oublié à implémenter plus tard */}
-              {/* <Link href="/mot-de-passe-oublie" className="text-xs font-medium text-teal-600 hover:text-teal-700">
+              <Link
+                href="/mot-de-passe-oublie"
+                className="text-xs font-medium text-teal-600 hover:text-teal-700"
+              >
                 Mot de passe oublié ?
-              </Link> */}
+              </Link>
             </div>
             <input
               id="password"

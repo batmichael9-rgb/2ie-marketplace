@@ -1,15 +1,13 @@
 "use server";
 
 import { Prisma } from "@prisma/client";
-import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser, requireVendor } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { generateShareCode, slugify } from "@/lib/domain";
 import { restockOrder } from "@/lib/stock";
+import { ImageUploadError, uploadProductImage } from "@/lib/storage";
 import {
   deleteProductSchema,
   productSchema,
@@ -64,47 +62,10 @@ export async function updateVendorProfileAction(formData: FormData) {
 // Produits
 // ---------------------------------------------------------------------------
 
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const IMAGE_EXTENSIONS: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/gif": "gif",
-};
+const NEW_PRODUCT_URL = "/espace-vendeur/produits/nouveau";
 
-/**
- * Enregistre la photo du produit dans `public/uploads/products/`.
- *
- * Stockage local temporaire en attendant Supabase Storage : le fichier est
- * servi directement par Next.js via son URL publique. On ne fait confiance ni
- * au nom ni à l'extension fournis par le navigateur : on déduit l'extension du
- * type MIME et on renomme avec un identifiant aléatoire.
- */
-async function saveProductImage(file: File): Promise<string> {
-  const extension = IMAGE_EXTENSIONS[file.type];
-  if (!extension) {
-    redirect(
-      `/espace-vendeur/produits/nouveau?erreur=${encodeURIComponent(
-        "Format d'image non pris en charge : choisis un JPG, PNG, WebP ou GIF.",
-      )}`,
-    );
-  }
-
-  if (file.size > MAX_IMAGE_BYTES) {
-    redirect(
-      `/espace-vendeur/produits/nouveau?erreur=${encodeURIComponent(
-        "Photo trop lourde : 5 Mo maximum. Compresse-la ou choisis-en une autre.",
-      )}`,
-    );
-  }
-
-  const directory = path.join(process.cwd(), "public", "uploads", "products");
-  await mkdir(directory, { recursive: true });
-
-  const filename = `${randomUUID()}.${extension}`;
-  await writeFile(path.join(directory, filename), Buffer.from(await file.arrayBuffer()));
-
-  return `/uploads/products/${filename}`;
+function productErrorUrl(message: string): string {
+  return `${NEW_PRODUCT_URL}?erreur=${encodeURIComponent(message)}`;
 }
 
 export async function createProductAction(formData: FormData) {
@@ -139,24 +100,50 @@ export async function createProductAction(formData: FormData) {
 
   const imageField = formData.get("image");
   const image = imageField instanceof File && imageField.size > 0 ? imageField : null;
-  const imageUrl = image ? await saveProductImage(image) : null;
 
-  await db.product.create({
-    data: {
-      vendorId: vendor.id,
-      categoryId: data.categoryId || null,
-      name: data.name,
-      slug,
-      description: data.description,
-      priceXof: data.priceXof,
-      stockMode: data.stockMode,
-      stockQty: data.stockMode === "TRACKED" ? data.stockQty : 0,
-      lowStockThreshold: data.lowStockThreshold,
-      isReservable: data.isReservable,
-      pickupNote: data.pickupNote || null,
-      images: imageUrl ? { create: [{ url: imageUrl, position: 0 }] } : undefined,
-    },
-  });
+  let imageUrl: string | null = null;
+  if (image) {
+    try {
+      imageUrl = await uploadProductImage(image);
+    } catch (error) {
+      if (!(error instanceof ImageUploadError)) {
+        console.error("Upload de la photo produit :", error);
+      }
+      redirect(
+        productErrorUrl(
+          error instanceof ImageUploadError
+            ? error.message
+            : "La photo n'a pas pu être envoyée. Vérifie ta connexion et réessaie.",
+        ),
+      );
+    }
+  }
+
+  try {
+    await db.product.create({
+      data: {
+        vendorId: vendor.id,
+        categoryId: data.categoryId || null,
+        name: data.name,
+        slug,
+        description: data.description,
+        priceXof: data.priceXof,
+        stockMode: data.stockMode,
+        stockQty: data.stockMode === "TRACKED" ? data.stockQty : 0,
+        lowStockThreshold: data.lowStockThreshold,
+        isReservable: data.isReservable,
+        pickupNote: data.pickupNote || null,
+        images: imageUrl ? { create: [{ url: imageUrl, position: 0 }] } : undefined,
+      },
+    });
+  } catch (error) {
+    console.error("Création du produit :", error);
+    redirect(
+      productErrorUrl(
+        "La publication du produit a échoué. Vérifie les informations saisies et réessaie.",
+      ),
+    );
+  }
 
   revalidatePath("/");
   revalidatePath("/espace-vendeur");

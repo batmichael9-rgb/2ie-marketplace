@@ -50,27 +50,41 @@ export const vendorEmailSchema = z
     message: `Pour vendre, l'email doit se terminer par @${VENDOR_EMAIL_DOMAIN} (format requis : prenom.nom@${VENDOR_EMAIL_DOMAIN}).`,
   });
 
-export const registerSchema = z.object({
-  email: z.string().trim().toLowerCase().email("Adresse email invalide"),
-  fullName: z.string().trim().min(2, "Indique ton nom complet (2 caractères minimum)").max(80),
-  password: password,
-  phone: phone.optional().or(z.literal("")),
-  next: z.string().optional(),
-});
+export const emailSchema = z
+  .string({ error: "Indique ton adresse email." })
+  .trim()
+  .toLowerCase()
+  .email("Adresse email invalide");
+
+export const otpCodeSchema = z
+  .string({ error: "Indique le code reçu par email." })
+  .trim()
+  .regex(/^\d{6}$/, "Le code doit contenir exactement 6 chiffres.");
 
 export const loginSchema = z.object({
-  email: z.string().trim().toLowerCase().email("Adresse email invalide"),
+  email: emailSchema,
   password: z.string().min(1, "Indique ton mot de passe"),
   next: z.string().optional(),
 });
 
-export const vendorRegisterSchema = z.object({
-  email: vendorEmailSchema,
-  fullName: z.string().trim().min(2, "Indique ton nom complet (2 caractères minimum)").max(80),
+/**
+ * Étape 2 de l'inscription : le code OTP a été envoyé, l'utilisateur choisit
+ * son mot de passe et complète son profil.
+ */
+export const verifySignupSchema = z.object({
+  email: emailSchema,
+  code: otpCodeSchema,
+  firstName: z.string().trim().min(2, "Indique ton prénom (2 caractères minimum).").max(40),
+  lastName: z.string().trim().min(2, "Indique ton nom (2 caractères minimum).").max(40),
   password: password,
   phone: phone.optional().or(z.literal("")),
-  shopName: z.string().trim().min(2, "Nom de boutique trop court").max(60),
   next: z.string().optional(),
+});
+
+export const resetPasswordSchema = z.object({
+  email: emailSchema,
+  code: otpCodeSchema,
+  password: password,
 });
 
 export const vendorProfileSchema = z.object({
