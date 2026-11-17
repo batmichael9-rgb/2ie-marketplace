@@ -4,11 +4,17 @@ import { hash } from "bcryptjs";
 const db = new PrismaClient();
 
 const categories = [
-  { name: "Fournitures scolaires / Papeterie", slug: "fournitures-scolaires", icon: "✏️", position: 1 },
-  { name: "Vêtements & Mode", slug: "vetements-mode", icon: "👕", position: 2 },
-  { name: "High-Tech & Accessoires", slug: "high-tech", icon: "💻", position: 3 },
-  { name: "Alimentation & Divers", slug: "alimentation-divers", icon: "🍲", position: 4 },
+  { name: "Repas", slug: "repas", icon: "🍲", position: 1 },
+  { name: "Matériel scolaire", slug: "materiel-scolaire", icon: "✏️", position: 2 },
+  { name: "Téléphones", slug: "telephones", icon: "📱", position: 3 },
+  { name: "Informatique", slug: "informatique", icon: "💻", position: 4 },
+  { name: "Mode", slug: "mode", icon: "👕", position: 5 },
+  { name: "Beauté & parfums", slug: "beaute", icon: "🧴", position: 6 },
 ];
+
+// `--categories-only` restaure les catégories sans recréer les vendeurs,
+// produits ni le client de démonstration (utile en production).
+const categoriesOnly = process.argv.includes("--categories-only");
 
 type SeedProduct = {
   slug: string;
@@ -187,6 +193,11 @@ async function main() {
       update: { name: category.name, icon: category.icon, position: category.position },
       create: category,
     });
+  }
+
+  if (categoriesOnly) {
+    console.log("✓ Catégories restaurées (vendeurs, produits et client démo ignorés).");
+    return;
   }
 
   for (const vendor of vendors) {
