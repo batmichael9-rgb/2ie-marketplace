@@ -8,6 +8,13 @@ const phone = z
   .max(20, "Numéro de téléphone trop long (20 caractères maximum).")
   .regex(/^[0-9+\s().-]+$/, "Numéro invalide : chiffres, espaces, +, - et parenthèses uniquement.");
 
+const password = z
+  .string({ error: "Indique ton mot de passe." })
+  .min(8, "Le mot de passe doit contenir au moins 8 caractères.")
+  .regex(/[A-Z]/, "Le mot de passe doit contenir au moins une lettre majuscule.")
+  .regex(/[a-z]/, "Le mot de passe doit contenir au moins une lettre minuscule.")
+  .regex(/[0-9]/, "Le mot de passe doit contenir au moins un chiffre.");
+
 /**
  * Champ texte facultatif.
  *
@@ -25,13 +32,6 @@ const optionalText = (max: number) =>
       .max(max, `Texte trop long (${max} caractères maximum).`),
   );
 
-export const loginSchema = z.object({
-  email: z.string().trim().email("Adresse email invalide"),
-  fullName: z.string().trim().min(2, "Indique ton nom").max(80),
-  phone: phone.optional().or(z.literal("")),
-  next: z.string().optional(),
-});
-
 /**
  * Email d'un commerçant : obligatoirement `prenom.nom@2ie-edu.org`.
  *
@@ -47,6 +47,29 @@ export const vendorEmailSchema = z
   .refine((email) => email.split("@")[1] === VENDOR_EMAIL_DOMAIN, {
     message: `Pour vendre, l'email doit se terminer par @${VENDOR_EMAIL_DOMAIN} (format requis : prenom.nom@${VENDOR_EMAIL_DOMAIN}).`,
   });
+
+export const registerSchema = z.object({
+  email: z.string().trim().email("Adresse email invalide"),
+  fullName: z.string().trim().min(2, "Indique ton nom complet (2 caractères minimum)").max(80),
+  password: password,
+  phone: phone.optional().or(z.literal("")),
+  next: z.string().optional(),
+});
+
+export const loginSchema = z.object({
+  email: z.string().trim().email("Adresse email invalide"),
+  password: z.string().min(1, "Indique ton mot de passe"),
+  next: z.string().optional(),
+});
+
+export const vendorRegisterSchema = z.object({
+  email: vendorEmailSchema,
+  fullName: z.string().trim().min(2, "Indique ton nom complet (2 caractères minimum)").max(80),
+  password: password,
+  phone: phone.optional().or(z.literal("")),
+  shopName: z.string().trim().min(2, "Nom de boutique trop court").max(60),
+  next: z.string().optional(),
+});
 
 export const vendorProfileSchema = z.object({
   shopName: z.string().trim().min(2, "Nom de boutique trop court").max(60),
