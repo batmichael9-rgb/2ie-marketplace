@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireVendor } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { CAMPUSES } from "@/lib/domain";
 import { createProductAction } from "@/server/actions/vendor";
 
 export const metadata: Metadata = { title: "Nouveau produit" };
@@ -11,7 +12,7 @@ export default async function NewProductPage({
 }: {
   searchParams: Promise<{ erreur?: string }>;
 }) {
-  await requireVendor("/espace-vendeur/produits/nouveau");
+  const { vendor } = await requireVendor("/espace-vendeur/produits/nouveau");
   const { erreur } = await searchParams;
 
   const categories = await db.category.findMany({ orderBy: { position: "asc" } });
@@ -96,6 +97,31 @@ export default async function NewProductPage({
               ))}
             </select>
           </div>
+        </div>
+
+        <div>
+          <label className="label" htmlFor="campus">
+            Campus 2iE
+          </label>
+          <select
+            id="campus"
+            name="campus"
+            className="input"
+            defaultValue={vendor.campus ?? ""}
+            required
+          >
+            <option value="" disabled>
+              Choisis ton site
+            </option>
+            {CAMPUSES.map((campus) => (
+              <option key={campus} value={campus}>
+                {campus}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-slate-500">
+            Affiché aux clients sur la carte et la fiche de ce produit.
+          </p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3">

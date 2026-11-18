@@ -87,12 +87,29 @@ export const resetPasswordSchema = z.object({
   password: password,
 });
 
+export const campusSchema = z.preprocess(
+  (value) => (value == null ? "" : value),
+  z.enum(["Site de Ouagadougou", "Site de Kamboinsé"], {
+    error: "Choisis ton campus : Site de Ouagadougou ou Site de Kamboinsé.",
+  }),
+);
+
 export const vendorProfileSchema = z.object({
   shopName: z.string().trim().min(2, "Nom de boutique trop court").max(60),
   description: z.string().trim().max(500).optional().or(z.literal("")),
   roomNumber: z.string().trim().max(30).optional().or(z.literal("")),
   momoNumber: phone.optional().or(z.literal("")),
   momoOperator: z.enum(["ORANGE_MONEY", "MOOV_MONEY"]).optional(),
+  campus: campusSchema,
+});
+
+/** Formulaire de la page /profil : compte client, complété par la boutique si vendeur. */
+export const profileSchema = z.object({
+  fullName: z.string().trim().min(2, "Indique ton nom complet (2 caractères minimum).").max(80),
+  email: emailSchema,
+  phone: phone.optional().or(z.literal("")),
+  shopName: z.string().trim().max(60).optional().or(z.literal("")),
+  campus: z.string().optional().or(z.literal("")),
 });
 
 export const productSchema = z.object({
@@ -109,6 +126,7 @@ export const productSchema = z.object({
   lowStockThreshold: z.coerce.number().int().min(0).max(1000).default(3),
   isReservable: z.boolean().default(false),
   pickupNote: optionalText(200),
+  campus: campusSchema,
 });
 
 export const checkoutSchema = z.object({

@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { requireVendor } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
+  CAMPUSES,
   ORDER_STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
-  appUrl,
   formatDate,
   type OrderStatus,
 } from "@/lib/domain";
@@ -38,6 +39,15 @@ export default async function VendorDashboardPage({
 }) {
   const { vendor } = await requireVendor();
   const params = await searchParams;
+
+  // URL publique des liens de partage : NEXT_PUBLIC_APP_URL en priorité, sinon
+  // l'hôte réel de la requête (jamais localhost en production).
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("host");
+  const protocol = requestHeaders.get("x-forwarded-proto") ?? "http";
+  const origin =
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "") ||
+    (host ? `${protocol}://${host}` : "");
 
   const [orders, products] = await Promise.all([
     db.order.findMany({
@@ -79,6 +89,7 @@ export default async function VendorDashboardPage({
 
   const notices = [
     params.produit === "ajoute" ? "Produit publié : il est maintenant visible au catalogue." : null,
+    params.produit === "maj" ? "Produit modifié : les changements sont visibles au catalogue." : null,
     params.produit === "supprime" ? "Produit supprimé définitivement." : null,
     params.stock === "maj" ? "Stock mis à jour." : null,
     params.commande === "maj" ? "Commande mise à jour." : null,
@@ -165,7 +176,7 @@ export default async function VendorDashboardPage({
         <section className="card p-5">
           <h2 className="font-semibold">Ton lien de partage</h2>
           <p className="mt-1 break-all rounded-xl bg-slate-50 px-3 py-2 font-mono text-sm">
-            {appUrl()}/s/{params.partage}
+            {origin}/s/{params.partage}
           </p>
           <p className="mt-2 text-xs text-slate-500">
             Chaque ouverture est comptée. Le lien redirige directement vers la fiche du produit.
@@ -212,6 +223,31 @@ export default async function VendorDashboardPage({
               defaultValue={vendor.description ?? ""}
               placeholder="Repas maison, retrait le soir à la chambre B214…"
             />
+          </div>
+
+          <div>
+            <label htmlFor="campus" className="label">
+              Campus 2iE
+            </label>
+            <select
+              id="campus"
+              name="campus"
+              className="input"
+              defaultValue={vendor.campus ?? ""}
+              required
+            >
+              <option value="" disabled>
+                Choisis ton site
+              </option>
+              {CAMPUSES.map((campus) => (
+                <option key={campus} value={campus}>
+                  {campus}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-500">
+              Ce campus est affiché aux clients sur chacune de tes fiches produit.
+            </p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -441,7 +477,7 @@ export default async function VendorDashboardPage({
           <ul className="space-y-3">
             {products.map((product) => {
               const shareLink = product.shareLinks[0];
-              const shareUrl = shareLink ? `${appUrl()}/s/${shareLink.code}` : null;
+              const shareUrl = shareLink ? `${origin}/s/${shareLink.code}` : null;
 
               return (
                 <li key={product.id} className="card p-4">
@@ -465,7 +501,13 @@ export default async function VendorDashboardPage({
                         {!product.isActive ? (
                           <span className="badge bg-slate-100 text-slate-600">Masqué</span>
                         ) : null}
-                        <span className="ml-auto">
+                        <span className="ml-auto flex items-center gap-1">
+                          <Link
+                            href={`/espace-vendeur/produits/${product.id}/modifier`}
+                            className="btn-secondary !px-2 !py-1 !text-xs"
+                          >
+                            Modifier
+                          </Link>
                           {params.supprimer === product.id ? (
                             <form action={deleteProductAction} className="flex items-center gap-1">
                               <input type="hidden" name="productId" value={product.id} />

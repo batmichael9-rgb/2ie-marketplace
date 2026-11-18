@@ -18,7 +18,7 @@ export default async function CatalogPage({
       },
       include: {
         images: { orderBy: { position: "asc" }, take: 1 },
-        vendor: { select: { shopName: true, slug: true, roomNumber: true } },
+        vendor: { select: { shopName: true, slug: true, roomNumber: true, campus: true } },
         reviews: { where: { isVisible: true }, select: { rating: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -28,6 +28,7 @@ export default async function CatalogPage({
   // Le filtrage par mot-clé est fait côté client (recherche en direct) : on
   // envoie donc tout le catalogue de la catégorie, avec le texte indexable.
   const cards: CatalogCard[] = allProducts.slice(0, 200).map((product) => ({
+    id: product.id,
     slug: product.slug,
     name: product.name,
     priceXof: product.priceXof,

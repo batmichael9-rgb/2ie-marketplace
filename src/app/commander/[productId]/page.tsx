@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { CampusBadge } from "@/components/campus-badge";
 import { IdempotencyField } from "@/components/idempotency-field";
 import { StockBadge } from "@/components/stock-badge";
 import { getCurrentUser } from "@/lib/auth";
@@ -95,6 +96,7 @@ export default async function CheckoutPage({
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold">{product.name}</p>
           <p className="text-sm text-slate-500">{product.vendor.shopName}</p>
+          <CampusBadge campus={product.vendor.campus} className="mt-1" />
           <StockBadge product={product} className="mt-1" />
         </div>
         <p className="shrink-0 font-bold">{formatXof(product.priceXof)}</p>

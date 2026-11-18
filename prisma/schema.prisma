@@ -62,6 +62,7 @@ model VendorProfile {
   description String?
   logoUrl     String?
   roomNumber  String? // champ facultatif du cahier des charges
+  campus      String? // Site de Ouagadougou | Site de Kamboinsé
   momoNumber  String? // paiement direct au vendeur (MVP)
   momoOperator String? // ORANGE_MONEY | MOOV_MONEY
   isActive    Boolean  @default(true)

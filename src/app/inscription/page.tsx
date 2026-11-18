@@ -206,19 +206,37 @@ export default async function RegisterPage({
               </div>
 
               {isVendor ? (
-                <div>
-                  <label htmlFor="shopName" className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Nom de ta boutique
-                  </label>
-                  <input
-                    id="shopName"
-                    name="shopName"
-                    type="text"
-                    className={inputClass}
-                    placeholder="Chez Fatou"
-                    required
-                  />
-                </div>
+                <>
+                  <div>
+                    <label htmlFor="shopName" className="block text-sm font-medium text-slate-700 mb-1.5">
+                      Nom de ta boutique
+                    </label>
+                    <input
+                      id="shopName"
+                      name="shopName"
+                      type="text"
+                      className={inputClass}
+                      placeholder="Chez Fatou"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="campus" className="block text-sm font-medium text-slate-700 mb-1.5">
+                      Campus 2iE
+                    </label>
+                    <select id="campus" name="campus" className={inputClass} defaultValue="" required>
+                      <option value="" disabled>
+                        Choisis ton site
+                      </option>
+                      <option value="Site de Ouagadougou">Site de Ouagadougou</option>
+                      <option value="Site de Kamboinsé">Site de Kamboinsé</option>
+                    </select>
+                    <p className="mt-1.5 text-xs text-slate-500">
+                      Ton campus est affiché aux clients sur tes produits.
+                    </p>
+                  </div>
+                </>
               ) : null}
 
               <button

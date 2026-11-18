@@ -200,6 +200,25 @@ export function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 }
 
+/**
+ * Campus 2iE sur lequel le vendeur se trouve. Stocké tel quel dans
+ * VendorProfile.campus pour rester lisible en base et dans les exports.
+ */
+export const CAMPUSES = ["Site de Ouagadougou", "Site de Kamboinsé"] as const;
+export type Campus = (typeof CAMPUSES)[number];
+
+export const CAMPUS_LABELS: Record<Campus, string> = {
+  "Site de Ouagadougou": "2iE Ouagadougou",
+  "Site de Kamboinsé": "2iE Kamboinsé",
+};
+
+/** Libellé court affiché aux clients : « 📍 2iE Ouagadougou ». */
+export function campusBadgeLabel(campus: string | null | undefined): string | null {
+  if (!campus) return null;
+  const label = CAMPUS_LABELS[campus as Campus];
+  return label ? `📍 ${label}` : null;
+}
+
 export function formatDate(value: Date | string): string {
   const date = typeof value === "string" ? new Date(value) : value;
   return new Intl.DateTimeFormat("fr-FR", {

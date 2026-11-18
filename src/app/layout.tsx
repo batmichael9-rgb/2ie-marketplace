@@ -3,6 +3,7 @@ import Link from "next/link";
 import "./globals.css";
 import { getCurrentUser } from "@/lib/auth";
 import { appUrl } from "@/lib/domain";
+import { MobileNav } from "@/components/mobile-nav";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { logoutAction } from "@/server/actions/auth";
 
@@ -45,6 +46,8 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
+  const firstName = user?.fullName.split(" ")[0] ?? null;
+  const isVendor = Boolean(user?.vendor) || user?.role === "ADMIN";
 
   return (
     <html lang="fr">
@@ -58,8 +61,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <span className="text-lg tracking-tight">Market</span>
             </Link>
 
-            <nav className="ml-auto flex items-center gap-1 text-sm">
-              <Link href="/" className="btn-ghost hidden sm:inline-flex">
+            {/* Ordinateur : liens à plat. Mobile : menu « 3 traits » à droite. */}
+            <nav className="ml-auto hidden items-center gap-1 text-sm md:flex">
+              <Link href="/" className="btn-ghost">
                 Catalogue
               </Link>
               <Link href="/espace-vendeur" className="btn-ghost">
@@ -68,12 +72,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
               {user ? (
                 <div className="flex items-center gap-1">
-                  <Link href="/mes-commandes" className="btn-ghost !px-2 !text-xs sm:!text-sm">
+                  <Link href="/mes-commandes" className="btn-ghost">
                     Mes commandes
                   </Link>
-                  <span className="hidden max-w-32 truncate px-2 text-slate-500 md:block">
-                    {user.fullName.split(" ")[0]}
-                  </span>
+                  <Link
+                    href="/profil"
+                    title="Mon profil"
+                    className="max-w-32 truncate px-2 text-slate-500 hover:text-teal-700"
+                  >
+                    {firstName}
+                  </Link>
                   <form action={logoutAction}>
                     <button type="submit" className="btn-secondary !py-2 !text-xs">
                       Déconnexion
@@ -86,6 +94,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </Link>
               )}
             </nav>
+
+            <div className="ml-auto md:hidden">
+              <MobileNav isLoggedIn={Boolean(user)} isVendor={isVendor} firstName={firstName} />
+            </div>
           </div>
         </header>
 

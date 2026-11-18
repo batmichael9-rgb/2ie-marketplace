@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CampusBadge } from "@/components/campus-badge";
 import { ClearIdempotency } from "@/components/clear-idempotency";
+import { ShareWhatsAppButton } from "@/components/share-whatsapp-button";
 import { StockBadge } from "@/components/stock-badge";
 import { Stars } from "@/components/stars";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { appUrl, formatDate } from "@/lib/domain";
+import { formatDate } from "@/lib/domain";
 import { formatXof } from "@/lib/money";
 import { createReviewAction } from "@/server/actions/reviews";
 
@@ -85,9 +87,6 @@ export default async function ProductPage({
   const outOfStock =
     product.stockMode === "OUT_OF_STOCK" ||
     (product.stockMode === "TRACKED" && product.stockQty <= 0);
-
-  const shareText = `${product.name} — ${formatXof(product.priceXof)} sur 2iE Market : ${appUrl()}/p/${product.slug}`;
-  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
 
   return (
     <div className="space-y-6">
@@ -224,14 +223,11 @@ export default async function ProductPage({
                   {product.isReservable ? "Réserver" : "Commander"}
                 </Link>
               )}
-              <a
-                href={whatsappUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="btn-secondary w-full"
-              >
-                Partager sur WhatsApp
-              </a>
+              <ShareWhatsAppButton
+                productId={product.id}
+                name={product.name}
+                priceXof={product.priceXof}
+              />
             </div>
 
             <p className="mt-3 text-xs text-slate-500">
@@ -242,6 +238,7 @@ export default async function ProductPage({
           <div className="card p-5">
             <h2 className="text-sm font-semibold text-slate-500">Vendu par</h2>
             <p className="mt-1 text-lg font-bold">{product.vendor.shopName}</p>
+            <CampusBadge campus={product.vendor.campus} className="mt-1" />
             <div className="mt-1">
               <Stars value={product.vendor.ratingAvg} count={product.vendor.ratingCount} />
             </div>

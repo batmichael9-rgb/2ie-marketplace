@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { formatXof } from "@/lib/money";
+import { CampusBadge } from "./campus-badge";
 import { StockBadge } from "./stock-badge";
 import { Stars } from "./stars";
 
 export type ProductCardData = {
+  id: string;
   slug: string;
   name: string;
   priceXof: number;
@@ -12,7 +14,12 @@ export type ProductCardData = {
   lowStockThreshold: number;
   isReservable: boolean;
   images: { url: string }[];
-  vendor: { shopName: string; slug: string; roomNumber: string | null };
+  vendor: {
+    shopName: string;
+    slug: string;
+    roomNumber: string | null;
+    campus: string | null;
+  };
   rating: { average: number; count: number };
 };
 
@@ -47,6 +54,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
           {product.vendor.shopName}
           {product.vendor.roomNumber ? ` · ${product.vendor.roomNumber}` : ""}
         </p>
+        <CampusBadge campus={product.vendor.campus} className="self-start" />
 
         <div className="mt-1 flex items-baseline gap-2">
           <span className="text-base font-bold text-slate-900">{formatXof(product.priceXof)}</span>

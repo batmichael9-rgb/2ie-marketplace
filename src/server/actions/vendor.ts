@@ -34,6 +34,7 @@ export async function updateVendorProfileAction(formData: FormData) {
     roomNumber: formData.get("roomNumber"),
     momoNumber: formData.get("momoNumber"),
     momoOperator: formData.get("momoOperator") || undefined,
+    campus: formData.get("campus"),
   });
 
   if (!parsed.success) {
@@ -50,6 +51,7 @@ export async function updateVendorProfileAction(formData: FormData) {
       roomNumber: data.roomNumber || null,
       momoNumber: data.momoNumber || null,
       momoOperator: data.momoOperator ?? null,
+      campus: data.campus,
     },
   });
 
@@ -81,6 +83,7 @@ export async function createProductAction(formData: FormData) {
     lowStockThreshold: formData.get("lowStockThreshold") ?? 3,
     isReservable: formData.get("isReservable") === "on",
     pickupNote: formData.get("pickupNote"),
+    campus: formData.get("campus"),
   });
 
   if (!parsed.success) {
@@ -120,22 +123,30 @@ export async function createProductAction(formData: FormData) {
   }
 
   try {
-    await db.product.create({
-      data: {
-        vendorId: vendor.id,
-        categoryId: data.categoryId || null,
-        name: data.name,
-        slug,
-        description: data.description,
-        priceXof: data.priceXof,
-        stockMode: data.stockMode,
-        stockQty: data.stockMode === "TRACKED" ? data.stockQty : 0,
-        lowStockThreshold: data.lowStockThreshold,
-        isReservable: data.isReservable,
-        pickupNote: data.pickupNote || null,
-        images: imageUrl ? { create: [{ url: imageUrl, position: 0 }] } : undefined,
-      },
-    });
+    await db.$transaction([
+      db.product.create({
+        data: {
+          vendorId: vendor.id,
+          categoryId: data.categoryId || null,
+          name: data.name,
+          slug,
+          description: data.description,
+          priceXof: data.priceXof,
+          stockMode: data.stockMode,
+          stockQty: data.stockMode === "TRACKED" ? data.stockQty : 0,
+          lowStockThreshold: data.lowStockThreshold,
+          isReservable: data.isReservable,
+          pickupNote: data.pickupNote || null,
+          images: imageUrl ? { create: [{ url: imageUrl, position: 0 }] } : undefined,
+        },
+      }),
+      // Le campus est une information de la boutique : il est confirmé à chaque
+      // publication de produit pour rester à jour côté client.
+      db.vendorProfile.update({
+        where: { id: vendor.id },
+        data: { campus: data.campus },
+      }),
+    ]);
   } catch (error) {
     console.error("Création du produit :", error);
     redirect(
@@ -148,6 +159,110 @@ export async function createProductAction(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/espace-vendeur");
   redirect("/espace-vendeur?produit=ajoute");
+}
+
+export async function updateProductAction(formData: FormData) {
+  const user = await requireUser();
+  const productId = String(formData.get("productId") ?? "");
+  const editUrl = `/espace-vendeur/produits/${productId}/modifier`;
+
+  if (!productId) redirect("/espace-vendeur?erreur=produit");
+
+  const product = await db.product.findUnique({
+    where: { id: productId },
+    select: { id: true, vendorId: true },
+  });
+
+  // Sécurité côté serveur : seul le propriétaire du produit (ou un admin) peut
+  // modifier la fiche, quel que soit le formulaire envoyé.
+  const isOwner = Boolean(user.vendor && product && product.vendorId === user.vendor.id);
+  if (!product || (!isOwner && user.role !== "ADMIN")) {
+    redirect("/espace-vendeur?erreur=produit");
+  }
+
+  const parsed = productSchema.safeParse({
+    name: formData.get("name"),
+    description: formData.get("description"),
+    priceXof: formData.get("priceXof"),
+    categoryId: formData.get("categoryId"),
+    stockMode: formData.get("stockMode"),
+    stockQty: formData.get("stockQty") ?? 0,
+    lowStockThreshold: formData.get("lowStockThreshold") ?? 3,
+    isReservable: formData.get("isReservable") === "on",
+    pickupNote: formData.get("pickupNote"),
+    campus: formData.get("campus"),
+  });
+
+  if (!parsed.success) {
+    const message = parsed.error.issues[0]?.message ?? "Formulaire incomplet";
+    redirect(`${editUrl}?erreur=${encodeURIComponent(message)}`);
+  }
+
+  const data = parsed.data;
+  const imageField = formData.get("image");
+  const image = imageField instanceof File && imageField.size > 0 ? imageField : null;
+
+  // Aucune nouvelle photo choisie : l'URL actuelle du produit est conservée.
+  let imageUrl: string | null = null;
+  if (image) {
+    try {
+      imageUrl = await uploadProductImage(image);
+    } catch (error) {
+      if (!(error instanceof ImageUploadError)) {
+        console.error("Upload de la photo produit (modification) :", error);
+      }
+      redirect(
+        `${editUrl}?erreur=${encodeURIComponent(
+          error instanceof ImageUploadError
+            ? error.message
+            : "La photo n'a pas pu être envoyée. Vérifie ta connexion et réessaie.",
+        )}`,
+      );
+    }
+  }
+
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.product.update({
+        where: { id: product.id },
+        data: {
+          name: data.name,
+          description: data.description,
+          priceXof: data.priceXof,
+          categoryId: data.categoryId || null,
+          stockMode: data.stockMode,
+          stockQty: data.stockMode === "TRACKED" ? data.stockQty : 0,
+          lowStockThreshold: data.lowStockThreshold,
+          isReservable: data.isReservable,
+          pickupNote: data.pickupNote || null,
+          ...(imageUrl
+            ? {
+                images: {
+                  deleteMany: {},
+                  create: [{ url: imageUrl, position: 0 }],
+                },
+              }
+            : {}),
+        },
+      });
+
+      await tx.vendorProfile.update({
+        where: { id: product.vendorId },
+        data: { campus: data.campus },
+      });
+    });
+  } catch (error) {
+    console.error("Modification du produit :", error);
+    redirect(
+      `${editUrl}?erreur=${encodeURIComponent(
+        "L'enregistrement a échoué. Vérifie les informations saisies et réessaie.",
+      )}`,
+    );
+  }
+
+  revalidatePath("/");
+  revalidatePath("/espace-vendeur");
+  redirect("/espace-vendeur?produit=maj#produits");
 }
 
 export async function updateStockAction(formData: FormData) {

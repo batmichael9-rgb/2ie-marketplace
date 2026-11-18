@@ -5,7 +5,7 @@ import { compare, hash } from "bcryptjs";
 import { redirect } from "next/navigation";
 import { createSession, destroySession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { slugify } from "@/lib/domain";
+import { CAMPUSES, slugify, type Campus } from "@/lib/domain";
 import { sendOtpEmail } from "@/lib/email";
 import { OtpError, consumeOtp, issueOtp } from "@/lib/otp";
 import {
@@ -171,6 +171,19 @@ export async function verifySignupCodeAction(formData: FormData) {
     );
   }
 
+  const campus = String(formData.get("campus") ?? "").trim();
+  if (isVendor && !CAMPUSES.includes(campus as Campus)) {
+    redirect(
+      signupUrl({
+        isVendor,
+        etape: "code",
+        email: data.email,
+        next,
+        erreur: "Indique ton campus : Site de Ouagadougou ou Site de Kamboinsé.",
+      }),
+    );
+  }
+
   const existing = await db.user.findUnique({
     where: { email: data.email },
     select: { id: true },
@@ -227,7 +240,7 @@ export async function verifySignupCodeAction(formData: FormData) {
         }
 
         await tx.vendorProfile.create({
-          data: { userId: user.id, shopName, slug },
+          data: { userId: user.id, shopName, slug, campus: isVendor ? campus : null },
         });
       }
 
