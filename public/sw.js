@@ -11,11 +11,15 @@
  * l'ancien cache chez les visiteurs.
  */
 
-const CACHE_VERSION = "2ie-market-v1";
+const CACHE_VERSION = "2ie-market-v2";
 const OFFLINE_URL = "/offline.html";
+// En développement, on n'intercepte aucune requête : le cache servirait des
+// chunks obsolètes et casserait le HMR. Les notifications Push restent actives.
+const IS_DEV_HOST =
+  self.location.hostname === "localhost" || self.location.hostname === "127.0.0.1";
 const PRECACHE = [
   OFFLINE_URL,
-  "/manifest.webmanifest",
+  "/manifest.json",
   "/icon.svg",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
@@ -45,6 +49,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 
+  if (IS_DEV_HOST) return;
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
@@ -89,4 +94,50 @@ self.addEventListener("fetch", (event) => {
       }),
     );
   }
+});
+
+// ---------------------------------------------------------------------------
+// Notifications Push Web
+// ---------------------------------------------------------------------------
+
+self.addEventListener("push", (event) => {
+  let payload = {};
+
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { body: event.data ? event.data.text() : "" };
+  }
+
+  const title = payload.title || "2iE Market";
+  const options = {
+    body: payload.body || "Nouvelle activité sur 2iE Market.",
+    icon: payload.icon || "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    data: { url: payload.url || "/" },
+    tag: payload.tag || "2ie-market",
+    vibrate: [80, 40, 80],
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const target = new URL(
+    (event.notification.data && event.notification.data.url) || "/",
+    self.location.origin,
+  ).href;
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientList) => {
+        for (const client of clientList) {
+          if (client.url === target && "focus" in client) return client.focus();
+        }
+        return self.clients.openWindow(target);
+      }),
+  );
 });

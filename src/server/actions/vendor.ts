@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { requireUser, requireVendor } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { generateShareCode, slugify } from "@/lib/domain";
+import { notifyUserSafely } from "@/lib/push";
 import { restockOrder } from "@/lib/stock";
 import { ImageUploadError, uploadProductImage } from "@/lib/storage";
 import {
@@ -385,11 +386,16 @@ export async function updateOrderAction(formData: FormData) {
   const payment = order.payments[0];
   const isCash = !payment || payment.provider === "CASH";
 
+  // Sert à n'envoyer la notification Push au client que si le statut a
+  // réellement changé (un second clic sur « Confirmer » ne renotifie pas).
+  let changed = false;
+
   if (intent === "CONFIRM") {
-    await db.order.updateMany({
+    const guard = await db.order.updateMany({
       where: { id: order.id, status: { in: ["AWAITING_PAYMENT", "PAID"] } },
       data: { status: "VENDOR_CONFIRMED", confirmedAt: new Date() },
     });
+    changed = guard.count > 0;
   }
 
   if (intent === "DELIVER") {
@@ -409,7 +415,11 @@ export async function updateOrderAction(formData: FormData) {
         },
       });
 
-      if (guard.count > 0 && payment && payment.status !== "SUCCEEDED") {
+      if (guard.count === 0) return;
+
+      changed = true;
+
+      if (payment && payment.status !== "SUCCEEDED") {
         await tx.payment.update({
           where: { id: payment.id },
           data: { status: "SUCCEEDED", confirmedAt: new Date() },
@@ -431,6 +441,8 @@ export async function updateOrderAction(formData: FormData) {
 
       if (guard.count === 0) return;
 
+      changed = true;
+
       if (payment && payment.status !== "SUCCEEDED") {
         await tx.payment.update({
           where: { id: payment.id },
@@ -439,6 +451,22 @@ export async function updateOrderAction(formData: FormData) {
       }
 
       await restockOrder(tx, order.id);
+    });
+  }
+
+  // Notification Push du client : il suit sa commande depuis son téléphone.
+  if (changed) {
+    const messages: Record<string, string> = {
+      CONFIRM: "confirmée par le vendeur",
+      DELIVER: "marquée comme livrée",
+      CANCEL: "annulée par le vendeur",
+    };
+
+    await notifyUserSafely(order.buyerId, {
+      title: "📦 Ta commande a été mise à jour",
+      body: `Commande ${order.reference} : ${messages[intent] ?? "statut modifié"}.`,
+      url: "/mes-commandes",
+      tag: `order-${order.id}`,
     });
   }
 

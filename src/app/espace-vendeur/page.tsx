@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
+import { PushNotificationsButton } from "@/components/push-notifications-button";
 import { requireVendor } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
@@ -155,6 +156,8 @@ export default async function VendorDashboardPage({
           </div>
         </dl>
       </header>
+
+      <PushNotificationsButton />
 
       {notices.length > 0 ? (
         <div className="space-y-2">

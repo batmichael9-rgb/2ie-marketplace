@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PushNotificationsButton } from "@/components/push-notifications-button";
 import { requireUser } from "@/lib/auth";
 import { CAMPUSES, campusBadgeLabel } from "@/lib/domain";
 import { updateProfileAction } from "@/server/actions/profile";
@@ -33,6 +34,8 @@ export default async function ProfilePage({
           Tes informations de compte et, si tu vends, celles de ta boutique.
         </p>
       </div>
+
+      <PushNotificationsButton />
 
       {params.ok ? (
         <p className="rounded-xl bg-teal-50 px-3 py-2 text-sm text-teal-900">

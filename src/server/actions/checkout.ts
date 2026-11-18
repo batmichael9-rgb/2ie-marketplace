@@ -5,9 +5,10 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { appUrl, generateOrderReference } from "@/lib/domain";
-import { computeFees } from "@/lib/money";
+import { computeFees, formatXof } from "@/lib/money";
 import { applyPaymentStatus } from "@/lib/payments/apply";
 import { getProvider } from "@/lib/payments";
+import { notifyUserSafely } from "@/lib/push";
 import { reserveStock } from "@/lib/stock";
 import { checkoutSchema } from "@/lib/validators";
 
@@ -89,7 +90,9 @@ export async function createOrderAction(formData: FormData) {
 
   const product = await db.product.findUnique({
     where: { id: data.productId },
-    include: { vendor: { select: { id: true, momoNumber: true, momoOperator: true } } },
+    include: {
+      vendor: { select: { id: true, userId: true, momoNumber: true, momoOperator: true } },
+    },
   });
 
   if (!product || !product.isActive) {
@@ -229,6 +232,17 @@ export async function createOrderAction(formData: FormData) {
 
     throw error;
   }
+
+  // --- Notification Push du vendeur -----------------------------------------
+  // Envoyée dès que la commande existe : un vendeur au téléphone la voit même
+  // s'il n'a pas l'application ouverte. Un échec de push ne bloque jamais la
+  // commande (notifyUserSafely avale les erreurs).
+  await notifyUserSafely(product.vendor.userId, {
+    title: "🛍️ Nouvelle commande sur 2iE Market !",
+    body: `${data.buyerName} a commandé ${product.name} (${formatXof(totalXof)})`,
+    url: "/espace-vendeur",
+    tag: `order-${reference}`,
+  });
 
   const payment = await db.payment.findUnique({ where: { merchantRef: merchantReference } });
   if (!payment) redirect(`/commande/${reference}`);

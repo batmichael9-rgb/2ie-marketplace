@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { Prisma } from "@prisma/client";
 import Link from "next/link";
 import { ClearIdempotency } from "@/components/clear-idempotency";
+import { PushNotificationsButton } from "@/components/push-notifications-button";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
@@ -59,6 +60,8 @@ export default async function MyOrdersPage({
           pas validées.
         </p>
       </header>
+
+      <PushNotificationsButton />
 
       {erreur ? (
         <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">

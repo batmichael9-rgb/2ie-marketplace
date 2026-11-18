@@ -37,6 +37,8 @@ model User {
   vendor  VendorProfile?
   orders  Order[]         @relation("BuyerOrders")
   reviews Review[]
+
+  pushSubscriptions PushSubscription[]
 }
 
 /// Code à usage unique (OTP) envoyé par email pour l'inscription ou la
@@ -278,4 +280,23 @@ model Review {
 
   @@unique([buyerId, productId])
   @@index([productId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Notifications Push Web (PWA)
+// ---------------------------------------------------------------------------
+
+/// Abonnement d'un appareil aux notifications du navigateur. Un utilisateur
+/// peut en avoir plusieurs (téléphone + ordinateur).
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

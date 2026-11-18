@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   description:
     "Commande et réserve auprès des commerçants de l'Institut 2iE : repas, matériel scolaire, téléphones, ordinateurs, vêtements et parfums.",
   applicationName: "2iE Market",
-  manifest: "/manifest.webmanifest",
+  manifest: "/manifest.json",
   // iOS n'utilise pas le manifest pour l'installation : ces balises permettent
   // « Sur l'écran d'accueil » puis un lancement en plein écran sans barre Safari.
   appleWebApp: {
