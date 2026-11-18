@@ -1,4 +1,8 @@
-import webpush, { type PushSubscription as WebPushSubscription } from "web-push";
+import {
+  sendNotification,
+  setVapidDetails,
+  type PushSubscription as WebPushSubscription,
+} from "web-push";
 import { db } from "@/lib/db";
 
 /**
@@ -41,7 +45,7 @@ function ensureConfigured(): boolean {
   }
 
   try {
-    webpush.setVapidDetails(subject, publicKey, privateKey);
+    setVapidDetails(subject, publicKey, privateKey);
     configured = true;
   } catch (error) {
     console.error("Clés VAPID invalides, notifications Push désactivées", error);
@@ -90,7 +94,7 @@ export async function sendPushToUser(
   await Promise.all(
     subscriptions.map(async (subscription) => {
       try {
-        await webpush.sendNotification(toWebPushSubscription(subscription), body, {
+        await sendNotification(toWebPushSubscription(subscription), body, {
           TTL: 60 * 60,
           urgency: "high",
         });
