@@ -3,9 +3,10 @@ import Link from "next/link";
 import "./globals.css";
 import { getCurrentUser } from "@/lib/auth";
 import { appUrl } from "@/lib/domain";
+import { HeaderActions } from "@/components/header-actions";
 import { MobileNav } from "@/components/mobile-nav";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
-import { logoutAction } from "@/server/actions/auth";
+import { countUnreadMessages } from "@/lib/messages";
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl()),
@@ -48,6 +49,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const user = await getCurrentUser();
   const firstName = user?.fullName.split(" ")[0] ?? null;
   const isVendor = Boolean(user?.vendor) || user?.role === "ADMIN";
+  // Badge rouge du header : total des messages non lus, toutes conversations.
+  const unreadCount = user ? await countUnreadMessages(user.id) : 0;
 
   return (
     <html lang="fr">
@@ -61,42 +64,33 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <span className="text-lg tracking-tight">Market</span>
             </Link>
 
-            {/* Ordinateur : liens à plat. Mobile : menu « 3 traits » à droite. */}
-            <nav className="ml-auto hidden items-center gap-1 text-sm md:flex">
+            {/* Ordinateur : liens à plat puis actions rapides (panier, messages, compte).
+                Mobile : menu « 3 traits » à droite. */}
+            <nav className="hidden items-center gap-1 text-sm md:flex">
               <Link href="/" className="btn-ghost">
                 Catalogue
               </Link>
-              <Link href="/espace-vendeur" className="btn-ghost">
-                Espace vendeur
-              </Link>
-
-              {user ? (
-                <div className="flex items-center gap-1">
-                  <Link href="/mes-commandes" className="btn-ghost">
-                    Mes commandes
-                  </Link>
-                  <Link
-                    href="/profil"
-                    title="Mon profil"
-                    className="max-w-32 truncate px-2 text-slate-500 hover:text-teal-700"
-                  >
-                    {firstName}
-                  </Link>
-                  <form action={logoutAction}>
-                    <button type="submit" className="btn-secondary !py-2 !text-xs">
-                      Déconnexion
-                    </button>
-                  </form>
-                </div>
-              ) : (
-                <Link href="/connexion" className="btn-primary !py-2 !text-xs">
-                  Se connecter
+              {isVendor ? (
+                <Link href="/espace-vendeur" className="btn-ghost">
+                  Espace vendeur
                 </Link>
-              )}
+              ) : null}
             </nav>
 
+            <HeaderActions
+              isLoggedIn={Boolean(user)}
+              isVendor={isVendor}
+              firstName={firstName}
+              unreadCount={unreadCount}
+            />
+
             <div className="ml-auto md:hidden">
-              <MobileNav isLoggedIn={Boolean(user)} isVendor={isVendor} firstName={firstName} />
+              <MobileNav
+                isLoggedIn={Boolean(user)}
+                isVendor={isVendor}
+                firstName={firstName}
+                unreadCount={unreadCount}
+              />
             </div>
           </div>
         </header>

@@ -3,21 +3,28 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import {
+  ClipboardList,
+  LayoutGrid,
+  LogOut,
+  MessageCircle,
+  Store,
+  User,
+} from "lucide-react";
 import { logoutAction } from "@/server/actions/auth";
 
 type MobileNavProps = {
   isLoggedIn: boolean;
   isVendor: boolean;
   firstName: string | null;
+  unreadCount: number;
 };
 
 /**
- * Menu mobile « 3 traits » du header.
- *
- * Sur les écrans < md, les liens de la barre de navigation seraient trop serrés :
- * ils sont regroupés dans ce menu déroulant.
+ * Menu mobile « 3 traits » du header, structuré comme le menu compte Alibaba :
+ * espace vendeur, commandes, messages (avec compteur) et profil.
  */
-export function MobileNav({ isLoggedIn, isVendor, firstName }: MobileNavProps) {
+export function MobileNav({ isLoggedIn, isVendor, firstName, unreadCount }: MobileNavProps) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -26,7 +33,8 @@ export function MobileNav({ isLoggedIn, isVendor, firstName }: MobileNavProps) {
     setOpen(false);
   }, [pathname]);
 
-  const linkClass = "block rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100";
+  const linkClass =
+    "flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100";
 
   return (
     <div className="relative md:hidden">
@@ -36,7 +44,7 @@ export function MobileNav({ isLoggedIn, isVendor, firstName }: MobileNavProps) {
         aria-label={open ? "Fermer le menu" : "Ouvrir le menu"}
         aria-expanded={open}
         aria-controls="menu-mobile"
-        className="btn-ghost !px-2.5 !py-2"
+        className="btn-ghost relative !px-2.5 !py-2"
       >
         <svg
           className="size-6"
@@ -60,6 +68,11 @@ export function MobileNav({ isLoggedIn, isVendor, firstName }: MobileNavProps) {
             </>
           )}
         </svg>
+        {!open && unreadCount > 0 ? (
+          <span className="absolute right-0 top-0 grid min-w-[18px] place-items-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-[18px] text-white">
+            {unreadCount > 99 ? "99+" : unreadCount}
+          </span>
+        ) : null}
       </button>
 
       {open ? (
@@ -72,40 +85,58 @@ export function MobileNav({ isLoggedIn, isVendor, firstName }: MobileNavProps) {
           />
           <nav
             id="menu-mobile"
-            className="absolute right-0 top-full z-40 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-lg"
+            className="absolute right-0 top-full z-40 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-lg"
           >
             {isLoggedIn && firstName ? (
-              <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                {firstName}
+              <p className="px-3 py-2 text-sm font-semibold text-slate-900">
+                Bonjour, {firstName} 👋
               </p>
             ) : null}
 
             <Link href="/" className={linkClass} onClick={() => setOpen(false)}>
+              <LayoutGrid className="size-4 text-slate-500" aria-hidden />
               Catalogue
             </Link>
 
             {isLoggedIn ? (
-              <>
-                <Link href="/mes-commandes" className={linkClass} onClick={() => setOpen(false)}>
-                  Mes commandes
-                </Link>
+              <div className="mt-1 border-t border-slate-100 pt-1">
                 {isVendor ? (
                   <Link href="/espace-vendeur" className={linkClass} onClick={() => setOpen(false)}>
-                    Espace vendeur
+                    <Store className="size-4 text-slate-500" aria-hidden />
+                    Mon espace vendeur
                   </Link>
                 ) : null}
+
+                <Link href="/mes-commandes" className={linkClass} onClick={() => setOpen(false)}>
+                  <ClipboardList className="size-4 text-slate-500" aria-hidden />
+                  Mes commandes
+                </Link>
+
+                <Link href="/messages" className={linkClass} onClick={() => setOpen(false)}>
+                  <MessageCircle className="size-4 text-slate-500" aria-hidden />
+                  Mes messages
+                  {unreadCount > 0 ? (
+                    <span className="ml-auto grid min-w-5 place-items-center rounded-full bg-red-600 px-1.5 text-[11px] font-bold leading-5 text-white">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  ) : null}
+                </Link>
+
                 <Link href="/profil" className={linkClass} onClick={() => setOpen(false)}>
+                  <User className="size-4 text-slate-500" aria-hidden />
                   Mon profil
                 </Link>
+
                 <form action={logoutAction} className="mt-1 border-t border-slate-100 pt-1">
                   <button
                     type="submit"
-                    className="block w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-700 hover:bg-red-50"
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-700 hover:bg-red-50"
                   >
-                    Déconnexion
+                    <LogOut className="size-4" aria-hidden />
+                    Se déconnecter
                   </button>
                 </form>
-              </>
+              </div>
             ) : (
               <div className="mt-1 space-y-1 border-t border-slate-100 pt-1">
                 <Link href="/connexion" className={linkClass} onClick={() => setOpen(false)}>

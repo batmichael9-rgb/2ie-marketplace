@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireVendor } from "@/lib/auth";
-import { db } from "@/lib/db";
 import { CAMPUSES } from "@/lib/domain";
 import { createProductAction } from "@/server/actions/vendor";
+import { catalogCategoryOptions } from "@/server/categories";
 
 export const metadata: Metadata = { title: "Nouveau produit" };
 
@@ -15,7 +15,7 @@ export default async function NewProductPage({
   const { vendor } = await requireVendor("/espace-vendeur/produits/nouveau");
   const { erreur } = await searchParams;
 
-  const categories = await db.category.findMany({ orderBy: { position: "asc" } });
+  const categories = await catalogCategoryOptions();
 
   return (
     <div className="mx-auto max-w-2xl space-y-5 py-2">
@@ -91,7 +91,6 @@ export default async function NewProductPage({
               <option value="">Sans catégorie</option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
-                  {category.icon ? `${category.icon} ` : ""}
                   {category.name}
                 </option>
               ))}

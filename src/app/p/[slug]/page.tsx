@@ -11,6 +11,7 @@ import { db } from "@/lib/db";
 import { formatDate } from "@/lib/domain";
 import { formatXof } from "@/lib/money";
 import { createReviewAction } from "@/server/actions/reviews";
+import { startConversationAction } from "@/server/actions/messages";
 
 const REVIEWABLE_STATUSES = ["PAID", "VENDOR_CONFIRMED", "READY_FOR_PICKUP", "COMPLETED"];
 
@@ -228,6 +229,16 @@ export default async function ProductPage({
                 name={product.name}
                 priceXof={product.priceXof}
               />
+
+              {/* Le vendeur ne peut pas discuter avec lui-même. */}
+              {product.vendor.userId !== user?.id ? (
+                <form action={startConversationAction}>
+                  <input type="hidden" name="productId" value={product.id} />
+                  <button type="submit" className="btn-secondary w-full !py-3">
+                    💬 Discuter avec le vendeur
+                  </button>
+                </form>
+              ) : null}
             </div>
 
             <p className="mt-3 text-xs text-slate-500">

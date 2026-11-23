@@ -1,32 +1,32 @@
 import { CatalogBrowser, type CatalogCard } from "@/components/catalog-browser";
 import { db } from "@/lib/db";
+import { ensureCatalogCategories } from "@/server/categories";
 
 export default async function CatalogPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; categorie?: string }>;
+  searchParams: Promise<{ q?: string; categorie?: string; campus?: string }>;
 }) {
-  const { q, categorie } = await searchParams;
+  const { q, categorie, campus } = await searchParams;
   const search = (q ?? "").trim();
 
-  const [categories, allProducts] = await Promise.all([
-    db.category.findMany({ orderBy: { position: "asc" } }),
-    db.product.findMany({
-      where: {
-        isActive: true,
-        ...(categorie ? { category: { slug: categorie } } : {}),
-      },
-      include: {
-        images: { orderBy: { position: "asc" }, take: 1 },
-        vendor: { select: { shopName: true, slug: true, roomNumber: true, campus: true } },
-        reviews: { where: { isVisible: true }, select: { rating: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-  ]);
+  // Les 27 catégories de référence sont créées à la première visite pour que
+  // les produits puissent y être rattachés dès leur publication.
+  await ensureCatalogCategories();
 
-  // Le filtrage par mot-clé est fait côté client (recherche en direct) : on
-  // envoie donc tout le catalogue de la catégorie, avec le texte indexable.
+  const allProducts = await db.product.findMany({
+    where: { isActive: true },
+    include: {
+      images: { orderBy: { position: "asc" }, take: 1 },
+      vendor: { select: { shopName: true, slug: true, roomNumber: true, campus: true } },
+      category: { select: { slug: true } },
+      reviews: { where: { isVisible: true }, select: { rating: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // Le filtrage (recherche, catégorie, campus) est fait côté client pour une
+  // réponse instantanée : on envoie le catalogue avec le texte indexable.
   const cards: CatalogCard[] = allProducts.slice(0, 200).map((product) => ({
     id: product.id,
     slug: product.slug,
@@ -38,6 +38,7 @@ export default async function CatalogPage({
     isReservable: product.isReservable,
     images: product.images,
     vendor: product.vendor,
+    categorySlug: product.category?.slug ?? null,
     rating: {
       count: product.reviews.length,
       average:
@@ -46,15 +47,15 @@ export default async function CatalogPage({
             product.reviews.length
           : 0,
     },
-    searchText: `${product.name} ${product.description ?? ""}`,
+    searchText: `${product.name} ${product.description}`,
   }));
 
   return (
     <CatalogBrowser
       initialQuery={search}
+      initialCategory={categorie}
+      initialCampus={campus}
       cards={cards}
-      categories={categories}
-      activeCategory={categorie}
     >
       <p className="text-xs font-semibold uppercase tracking-wider text-teal-100">
         Institut 2iE · Ouagadougou
@@ -63,8 +64,8 @@ export default async function CatalogPage({
         Le commerce du campus, au même endroit.
       </h1>
       <p className="mt-2 max-w-xl text-sm text-teal-50">
-        Repas, matériel, téléphones, ordinateurs, vêtements et parfums disponibles sur le campus.
-        Commande en ligne, retire sur le campus, paie à la remise.
+        Vêtements, électronique, énergie, construction, maison, beauté, services… Commande en
+        ligne, retire sur le campus, paie à la remise.
       </p>
     </CatalogBrowser>
   );

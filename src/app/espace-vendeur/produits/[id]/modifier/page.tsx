@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { CAMPUSES } from "@/lib/domain";
 import { updateProductAction } from "@/server/actions/vendor";
+import { catalogCategoryOptions } from "@/server/categories";
 
 export const metadata: Metadata = { title: "Modifier un produit" };
 
@@ -27,12 +28,28 @@ export default async function EditProductPage({
       include: {
         images: { orderBy: { position: "asc" }, take: 1 },
         vendor: { select: { id: true, campus: true } },
+        category: { select: { id: true, name: true, slug: true } },
       },
     }),
-    db.category.findMany({ orderBy: { position: "asc" } }),
+    catalogCategoryOptions(),
   ]);
 
   if (!product) notFound();
+
+  // Un produit encore rattaché à une ancienne catégorie la conserve dans la
+  // liste : l'enregistrement ne doit pas la remplacer par « Sans catégorie ».
+  const currentCategory = product.category;
+  const categoryOptions =
+    currentCategory && !categories.some((category) => category.id === currentCategory.id)
+      ? [
+          ...categories,
+          {
+            id: currentCategory.id,
+            name: `${currentCategory.name} (ancienne catégorie)`,
+            slug: currentCategory.slug,
+          },
+        ]
+      : categories;
 
   // Même contrôle que la Server Action : seul le propriétaire (ou un admin)
   // peut ouvrir le formulaire d'édition.
@@ -118,9 +135,8 @@ export default async function EditProductPage({
               defaultValue={product.categoryId ?? ""}
             >
               <option value="">Sans catégorie</option>
-              {categories.map((category) => (
+              {categoryOptions.map((category) => (
                 <option key={category.id} value={category.id}>
-                  {category.icon ? `${category.icon} ` : ""}
                   {category.name}
                 </option>
               ))}

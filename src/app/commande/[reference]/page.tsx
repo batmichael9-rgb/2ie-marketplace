@@ -15,6 +15,7 @@ import {
 import { formatXof } from "@/lib/money";
 import { getProvider } from "@/lib/payments";
 import { cancelOrderAction } from "@/server/actions/orders";
+import { startOrderConversationAction } from "@/server/actions/messages";
 
 export const metadata: Metadata = { title: "Ma commande" };
 
@@ -202,6 +203,22 @@ export default async function OrderPage({
           <strong>Contact :</strong> {order.buyerName} · {order.buyerPhone}
         </p>
         <p className="text-xs text-slate-500">Commande passée le {formatDate(order.createdAt)}</p>
+      </section>
+
+      <section className="card flex flex-wrap items-center justify-between gap-3 p-5">
+        <div>
+          <h2 className="font-semibold">Une question sur cette commande ?</h2>
+          <p className="mt-0.5 text-xs text-slate-600">
+            Échange directement dans la messagerie 2iE Market. Le destinataire reçoit une
+            notification Push.
+          </p>
+        </div>
+        <form action={startOrderConversationAction}>
+          <input type="hidden" name="orderId" value={order.id} />
+          <button type="submit" className="btn-secondary">
+            💬 Discuter avec {isBuyer ? "le vendeur" : "l'acheteur"}
+          </button>
+        </form>
       </section>
 
       {cancellable ? (
