@@ -1,11 +1,13 @@
 import {
   Backpack,
+  BookOpen,
   Boxes,
   Briefcase,
   Building2,
   Cable,
   Car,
   CircuitBoard,
+  Coffee,
   Construction,
   Dumbbell,
   Factory,
@@ -16,6 +18,7 @@ import {
   Hammer,
   Handshake,
   Home,
+  Laptop,
   Lightbulb,
   Mountain,
   Shirt,
@@ -24,6 +27,7 @@ import {
   Sparkles,
   Sun,
   Truck,
+  Utensils,
   WashingMachine,
   Watch,
   Wheat,
@@ -47,6 +51,17 @@ export type CatalogCategory = {
 };
 
 export const CATEGORIES: CatalogCategory[] = [
+  // En tête : les besoins quotidiens du campus 2iE (repas, cours, téléphone,
+  // ordinateur, mode), avant les familles plus techniques.
+  { name: "Nourriture & Repas", slug: "nourriture-repas", icon: Utensils },
+  { name: "Boissons & Snacks", slug: "boissons-snacks", icon: Coffee },
+  { name: "Matériel scolaire & Livres", slug: "materiel-scolaire-livres", icon: BookOpen },
+  { name: "Téléphones & Accessoires", slug: "telephones-accessoires", icon: Smartphone },
+  { name: "Informatique & Ordinateurs", slug: "informatique-ordinateurs", icon: Laptop },
+  { name: "Mode & Vêtements", slug: "mode-vetements", icon: Shirt },
+  { name: "Chaussures & Sacs", slug: "chaussures-sacs", icon: Footprints },
+  { name: "Beauté & Parfums", slug: "beaute-parfums", icon: Sparkles },
+
   { name: "Vêtements & Accessoires", slug: "vetements-accessoires", icon: Shirt },
   { name: "Électronique grand public", slug: "electronique-grand-public", icon: Smartphone },
   { name: "Composants électroniques", slug: "composants-electroniques", icon: CircuitBoard },

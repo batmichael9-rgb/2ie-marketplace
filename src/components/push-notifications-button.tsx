@@ -37,6 +37,9 @@ function urlBase64ToArrayBuffer(base64String: string): ArrayBuffer {
  */
 export function PushNotificationsButton() {
   const [status, setStatus] = useState<Status>("loading");
+  const [test, setTest] = useState<{ status: "idle" | "sending" | "ok" | "error"; message?: string }>(
+    { status: "idle" },
+  );
 
   useEffect(() => {
     if (!VAPID_PUBLIC_KEY) {
@@ -114,12 +117,62 @@ export function PushNotificationsButton() {
 
   if (status === "loading" || status === "unsupported") return null;
 
+  // Diagnostic : envoie une vraie notification au téléphone courant et affiche
+  // la raison précise en cas d'échec (VAPID, abonnement, service de push).
+  async function sendTestNotification() {
+    if (test.status === "sending") return;
+    setTest({ status: "sending" });
+
+    try {
+      const response = await fetch("/api/push/test", { method: "POST" });
+      const data = (await response.json().catch(() => null)) as
+        | { ok?: boolean; message?: string }
+        | null;
+
+      if (!response.ok || !data?.ok) {
+        setTest({
+          status: "error",
+          message: data?.message ?? `Échec de l'envoi (${response.status}).`,
+        });
+        return;
+      }
+
+      setTest({
+        status: "ok",
+        message: data.message ?? "Notification de test envoyée.",
+      });
+    } catch {
+      setTest({ status: "error", message: "Impossible de contacter le serveur." });
+    }
+  }
+
   if (status === "subscribed") {
     return (
-      <p className="flex items-center gap-2 rounded-xl bg-teal-50 px-3 py-2 text-xs text-teal-900">
-        <span aria-hidden>🔔</span>
-        Notifications activées sur ce téléphone.
-      </p>
+      <div className="rounded-xl bg-teal-50 px-3 py-2 text-xs text-teal-900">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="flex items-center gap-2">
+            <span aria-hidden>🔔</span>
+            Notifications activées sur ce téléphone.
+          </p>
+          <button
+            type="button"
+            onClick={sendTestNotification}
+            disabled={test.status === "sending"}
+            className="btn-secondary ml-auto !py-1.5 !text-xs"
+          >
+            {test.status === "sending" ? "Envoi…" : "🔔 Tester sur ce téléphone"}
+          </button>
+        </div>
+
+        {test.message ? (
+          <p
+            role="status"
+            className={`mt-1.5 ${test.status === "error" ? "text-red-700" : "text-teal-800"}`}
+          >
+            {test.message}
+          </p>
+        ) : null}
+      </div>
     );
   }
 

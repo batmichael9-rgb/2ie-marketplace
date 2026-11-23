@@ -115,8 +115,12 @@ self.addEventListener("push", (event) => {
     icon: payload.icon || "/icons/icon-192.png",
     badge: "/icons/icon-192.png",
     data: { url: payload.url || "/" },
-    tag: payload.tag || "2ie-market",
-    vibrate: [80, 40, 80],
+    // Un même tag remplace la notification précédente (pas d'empilement) et
+    // renotify force la bannière + le son/vibreur à chaque nouveau message.
+    tag: payload.tag || "2ie-market-notif",
+    renotify: true,
+    silent: false,
+    vibrate: [200, 100, 200],
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
