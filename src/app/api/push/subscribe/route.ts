@@ -45,3 +45,35 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }
+
+/**
+ * Supprime les abonnements Push de l'utilisateur connecté (par défaut tous ses
+ * appareils). Utilisé par « Réinitialiser sur cet appareil » avant de recréer
+ * un abonnement propre, pour purger les endpoints morts restés en base.
+ */
+export async function DELETE(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  // Endpoint optionnel dans le corps : sans lui, on purge tout le compte.
+  let endpoint: string | null = null;
+  try {
+    const payload = (await request.json()) as { endpoint?: unknown };
+    if (typeof payload?.endpoint === "string" && payload.endpoint.length > 0) {
+      endpoint = payload.endpoint;
+    }
+  } catch {
+    // Corps vide (fetch sans body) : suppression de tous les abonnements.
+  }
+
+  const result = await db.pushSubscription.deleteMany({
+    where: endpoint ? { userId: user.id, endpoint } : { userId: user.id },
+  });
+
+  return NextResponse.json(
+    { ok: true, deleted: result.count },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+}
