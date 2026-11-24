@@ -171,7 +171,7 @@ export function CatalogBrowser({
 
   return (
     <div className="space-y-5">
-      <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-teal-800 via-teal-700 to-emerald-600 px-5 py-7 text-white">
+      <section className="w-full overflow-hidden rounded-3xl bg-gradient-to-br from-teal-800 via-teal-700 to-emerald-600 px-5 py-7 text-white">
         {children}
 
         <div className="mt-4">
@@ -192,7 +192,7 @@ export function CatalogBrowser({
               }
               aria-label={aiMode ? "Décrire une recherche intelligente" : "Rechercher un produit"}
               autoComplete="off"
-              className="w-full rounded-xl border-0 bg-white/95 py-2.5 pl-11 pr-10 text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/60"
+              className="w-full rounded-xl border-0 bg-white/95 py-2.5 pl-11 pr-10 text-base text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/60"
             />
             {query ? (
               <button
@@ -294,10 +294,11 @@ export function CatalogBrowser({
             <ChevronRight className="size-4" aria-hidden />
           </button>
 
-          <nav
-            aria-label="Filtrer par catégorie"
-            className="flex overflow-x-auto no-scrollbar gap-2 py-2"
-          >
+          <div className="w-full max-w-full overflow-x-auto">
+            <nav
+              aria-label="Filtrer par catégorie"
+              className="no-scrollbar flex w-max min-w-full gap-2 py-2"
+            >
             <button
               type="button"
               onClick={() => setCategory(null)}
@@ -333,7 +334,8 @@ export function CatalogBrowser({
                 </button>
               );
             })}
-          </nav>
+            </nav>
+          </div>
 
           {!aiMode && recommended.length > 0 ? (
             <section aria-labelledby="recommended-heading">
@@ -440,7 +442,7 @@ export function CatalogBrowser({
                       autre campus ou reformule ta demande.
                     </p>
                   ) : (
-                    <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                    <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                       {aiProducts.map((product) => (
                         <ProductCard key={product.id} product={product} />
                       ))}
@@ -488,7 +490,7 @@ export function CatalogBrowser({
                   ) : null}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                   {results.map((card) => (
                     <ProductCard key={card.slug} product={card} />
                   ))}

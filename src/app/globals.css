@@ -16,11 +16,12 @@
 
 @layer base {
   html {
+    @apply max-w-full overflow-x-hidden;
     -webkit-tap-highlight-color: transparent;
   }
 
   body {
-    @apply bg-stone-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+    @apply max-w-full overflow-x-hidden bg-stone-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   }
 

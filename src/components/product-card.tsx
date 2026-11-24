@@ -31,13 +31,13 @@ export function ProductCard({ product }: { product: ProductCardData }) {
       href={`/p/${product.slug}`}
       className="card group flex flex-col overflow-hidden transition-shadow hover:shadow-md"
     >
-      <div className="relative aspect-square overflow-hidden bg-slate-100 dark:bg-slate-800">
+      <div className="relative aspect-square h-36 w-full overflow-hidden rounded-t-xl bg-slate-100 dark:bg-slate-800 sm:h-44">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={image}
           alt={product.name}
           loading="lazy"
-          className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
         />
         {product.isReservable ? (
           <span className="badge absolute left-2 top-2 bg-white/90 text-teal-800 shadow-sm">

@@ -59,11 +59,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const unreadCount = user ? await countUnreadMessages(user.id) : 0;
 
   return (
-    <html lang="fr" suppressHydrationWarning>
+    <html lang="fr" suppressHydrationWarning className="max-w-full overflow-x-hidden">
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
-      <body className="flex min-h-dvh flex-col">
+      <body className="flex min-h-dvh max-w-full flex-col overflow-x-hidden">
         <ThemeProvider>
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-stone-50/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
           <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-3">

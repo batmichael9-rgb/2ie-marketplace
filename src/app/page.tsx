@@ -81,7 +81,7 @@ export default async function CatalogPage({
       <h1 className="mt-1 text-2xl font-bold leading-tight sm:text-3xl">
         Le commerce du campus, au même endroit.
       </h1>
-      <p className="mt-2 max-w-xl text-sm text-teal-50">
+      <p className="mt-2 max-w-xl text-base text-teal-50">
         Vêtements, électronique, énergie, construction, maison, beauté, services… Commande en
         ligne, retire sur le campus, paie à la remise.
       </p>
