@@ -5,7 +5,7 @@ import { getProvider } from "@/lib/payments";
 import { applyPaymentStatus } from "@/lib/payments/apply";
 
 /**
- * Webhook PSP : /api/webhooks/cinetpay
+ * Webhook PSP générique : /api/webhooks/{provider}
  *
  * Pipeline :
  *  1. déduplication de l'événement (UNIQUE provider + provider_event_id) ;

@@ -283,7 +283,10 @@ export async function createOrderAction(formData: FormData) {
         email: user.email,
       },
       returnUrl: `${appUrl()}/commande/${reference}`,
-      notifyUrl: `${appUrl()}/api/webhooks/${provider.id.toLowerCase()}`,
+      notifyUrl:
+        provider.id === "CINETPAY"
+          ? `${appUrl()}/api/payments/webhook`
+          : `${appUrl()}/api/webhooks/${provider.id.toLowerCase()}`,
       metadata: { product: product.id, vendor: product.vendorId },
     });
   } catch (error) {

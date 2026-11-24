@@ -10,7 +10,11 @@ import { cinetpayProvider } from "@/lib/payments/cinetpay";
 import { reserveStock } from "@/lib/stock";
 
 /**
- * Initialisation d'un paiement en ligne CinetPay.
+ * Initialisation d'un paiement en ligne CinetPay (API v1).
+ *
+ * L'acheteur est redirigé vers `payment_url` renvoyé par CinetPay, où il choisit
+ * Orange Money, Moov Money ou la carte bancaire. `transaction_id` et
+ * `notify_token` sont enregistrés sur le paiement pour vérifier la notification.
  *
  * Le prix est relu en base : le client ne peut jamais imposer un montant. Le
  * montant payé est exactement le prix du catalogue ; la commission de 5 % est
@@ -215,7 +219,7 @@ export async function POST(request: Request) {
     orderReference: reference,
     buyer: { name: data.buyerName, phone: data.buyerPhone, email: user.email },
     returnUrl: `${appUrl()}/commande/${reference}`,
-    notifyUrl: `${appUrl()}/api/webhooks/cinetpay`,
+    notifyUrl: `${appUrl()}/api/payments/webhook`,
     metadata: {
       product: product.id,
       vendor: product.vendorId,

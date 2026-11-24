@@ -54,13 +54,13 @@ AUTH_SECRET="votre-secret-de-session-32-caracteres-minimum"
 # URL publique de l'application
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 
-# CinetPay (optionnel, pour Mobile Money)
+# CinetPay API v1 (optionnel, pour Mobile Money)
 CINETPAY_API_KEY=""
-CINETPAY_SITE_ID=""
-CINETPAY_API_URL="https://api-checkout.cinetpay.com/v2"
+CINETPAY_API_PASSWORD=""
+CINETPAY_API_URL="https://api.cinetpay.net"
 
-# Commission plateforme en points de base (100 = 1%)
-PLATFORM_FEE_BPS="0"
+# Commission plateforme en points de base (100 = 1 %, 500 = 5 %)
+PLATFORM_FEE_BPS="500"
 
 # Photos produits (Supabase Storage)
 SUPABASE_URL="https://<project-ref>.supabase.co"
@@ -173,8 +173,9 @@ vercel --prod
 Pour activer les paiements Mobile Money :
 
 1. Créer un compte marchand sur [CinetPay](https://cinetpay.com)
-2. Récupérer `CINETPAY_API_KEY` et `CINETPAY_SITE_ID`
-3. Les ajouter aux variables d'environnement
+2. Récupérer `CINETPAY_API_KEY` et `CINETPAY_API_PASSWORD` (API v1)
+3. Les ajouter aux variables d'environnement (`CINETPAY_API_URL=https://api.cinetpay.net` en sandbox, `https://api.cinetpay.co` en production)
+4. Renseigner l'URL de notification `https://<votre-domaine>/api/payments/webhook`
 
 ## 🔐 Gestion des rôles
 

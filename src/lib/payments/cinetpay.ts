@@ -9,17 +9,20 @@ import type {
 } from "./types";
 
 /**
- * Intégration CinetPay (checkout hébergé, Orange Money / Moov Money Burkina).
+ * Intégration CinetPay API v1 (https://api.cinetpay.net).
  *
- * Point clé : on ne débloque jamais une commande à partir du contenu du webhook.
- * Le webhook sert uniquement de signal ; le statut canonique est obtenu en
- * réinterrogeant /v2/payment/check. Un webhook forgé ne peut donc rien valider.
+ * Authentification : POST /v1/oauth/login avec api_key + api_password renvoie
+ * un access_token, passé ensuite en `Authorization: Bearer <token>`.
  *
- * La documentation CinetPay a évolué plusieurs fois (v1 `cpm_*`, v2
- * `merchant_transaction_id`). Le parseur accepte les deux formes ; à valider en
- * sandbox avant la mise en production, avec le compte marchand réel.
+ * Endpoints utilisés :
+ *  - POST /v1/payment                  initialisation du paiement web ;
+ *  - GET  /v1/payment/{identifier}     statut canonique (merchant_transaction_id,
+ *                                      transaction_id ou payment_token).
+ *
+ * Règle de sécurité inchangée : le webhook n'est qu'un signal. Le statut vient
+ * toujours de la réinterrogation de l'API, jamais du corps de la notification.
  */
-const DEFAULT_API_URL = "https://api-checkout.cinetpay.com/v2";
+const DEFAULT_API_URL = "https://api.cinetpay.net";
 
 function apiUrl(): string {
   return (process.env.CINETPAY_API_URL ?? DEFAULT_API_URL).replace(/\/$/, "");
@@ -27,26 +30,52 @@ function apiUrl(): string {
 
 function config() {
   return {
-    apikey: process.env.CINETPAY_API_KEY ?? "",
-    siteId: process.env.CINETPAY_SITE_ID ?? "",
+    apiKey: process.env.CINETPAY_API_KEY ?? "",
+    apiPassword: process.env.CINETPAY_API_PASSWORD ?? "",
   };
 }
 
-/** Secret utilisé pour authentifier les notifications entrantes (en-tête x-token). */
-export function cinetpaySecretKey(): string {
-  return process.env.CINETPAY_SECRET_KEY ?? "";
+/** Découpe un nom complet en prénom / nom attendus par l'API v1. */
+function splitName(fullName: string): { firstName: string; lastName: string } {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0] ?? "Client";
+  const last = parts.slice(1).join(" ") || first;
+
+  const ensureLength = (value: string) =>
+    value.length >= 2 ? value : `${value}X`.slice(0, 255);
+
+  return {
+    firstName: ensureLength(first).slice(0, 80),
+    lastName: ensureLength(last).slice(0, 80),
+  };
+}
+
+/** Normalise un numéro burkinabè au format international +226XXXXXXXX. */
+function normalizePhone(raw: string): string {
+  let digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("226")) return `+${digits}`;
+  if (digits.length === 8) return `+226${digits}`;
+  return digits ? `+${digits}` : "";
 }
 
 /**
- * Lit un corps de webhook CinetPay : JSON en v2, formulaire encodé en v1.
- * Renvoie null si le corps n'est pas exploitable.
+ * Lit un corps de webhook CinetPay : JSON en v1, formulaire encodé accepté par
+ * tolérance. Renvoie null si le corps n'est pas exploitable.
  */
 export function parseCinetpayWebhookBody(rawBody: string): Record<string, unknown> | null {
   try {
     const json = JSON.parse(rawBody);
-    if (json && typeof json === "object") return json as Record<string, unknown>;
+    if (json && typeof json === "object") {
+      const record = json as Record<string, unknown>;
+      // Certaines notifications encapsulent le contenu dans `data`.
+      if (record.data && typeof record.data === "object" && !Array.isArray(record.data)) {
+        return { ...(record.data as Record<string, unknown>), ...record };
+      }
+      return record;
+    }
   } catch {
-    // Pas du JSON : on tente le formulaire encodé (v1).
+    // Pas du JSON : on tente le formulaire encodé.
   }
 
   try {
@@ -59,14 +88,14 @@ export function parseCinetpayWebhookBody(rawBody: string): Record<string, unknow
 }
 
 const STATUS_MAP: Record<string, NormalizedPaymentStatus> = {
-  ACCEPTED: "SUCCEEDED",
   SUCCESS: "SUCCEEDED",
+  ACCEPTED: "SUCCEEDED",
   PAID: "SUCCEEDED",
-  REFUSED: "FAILED",
   FAILED: "FAILED",
+  REFUSED: "FAILED",
+  EXPIRED: "EXPIRED",
   CANCELED: "EXPIRED",
   CANCELLED: "EXPIRED",
-  EXPIRED: "EXPIRED",
   REFUNDED: "REFUNDED",
   PENDING: "PENDING",
   INITIATED: "PENDING",
@@ -79,11 +108,20 @@ function normalizeStatus(raw: unknown): NormalizedPaymentStatus {
   return STATUS_MAP[key] ?? "PENDING";
 }
 
-async function postJson(path: string, body: Record<string, unknown>) {
+type JsonResult = { ok: boolean; json: any };
+
+async function requestJson(
+  path: string,
+  init: { method: "GET" | "POST"; body?: unknown; token?: string },
+): Promise<JsonResult> {
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (init.body !== undefined) headers["Content-Type"] = "application/json";
+  if (init.token) headers.Authorization = `Bearer ${init.token}`;
+
   const response = await fetch(`${apiUrl()}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(body),
+    method: init.method,
+    headers,
+    body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
     cache: "no-store",
   });
 
@@ -94,61 +132,107 @@ async function postJson(path: string, body: Record<string, unknown>) {
   } catch {
     json = { raw: text };
   }
-  return { ok: response.ok, json } as { ok: boolean; json: any };
+  return { ok: response.ok, json } as JsonResult;
+}
+
+type TokenResult = { token: string | null; error?: string; raw?: unknown };
+
+/** OAuth v1 : un Bearer token est obtenu avant chaque appel API. */
+async function getAccessToken(): Promise<TokenResult> {
+  const { apiKey, apiPassword } = config();
+
+  if (!apiKey || !apiPassword) {
+    return { token: null, error: "CinetPay n'est pas configuré." };
+  }
+
+  try {
+    const { ok, json } = await requestJson("/v1/oauth/login", {
+      method: "POST",
+      body: { api_key: apiKey, api_password: apiPassword },
+    });
+
+    const token = json?.access_token ?? json?.data?.access_token ?? json?.token ?? null;
+    if (!ok || !token) {
+      return {
+        token: null,
+        error: json?.message ?? json?.error ?? "Authentification CinetPay refusée.",
+        raw: json,
+      };
+    }
+
+    return { token: String(token), raw: json };
+  } catch (error) {
+    return {
+      token: null,
+      error: "Impossible de joindre CinetPay.",
+      raw: { error: error instanceof Error ? error.message : String(error) },
+    };
+  }
 }
 
 export const cinetpayProvider: PaymentProvider = {
   id: "CINETPAY",
-  label: "Paiement en ligne (Orange Money, Moov Money, Wave, Carte)",
+  label: "Paiement en ligne (Orange Money, Moov Money, Carte bancaire)",
   description:
-    "Paiement sécurisé via CinetPay : Orange Money, Moov Money, Wave ou carte bancaire. Tu recevras une demande de confirmation sur ton téléphone.",
+    "Paiement sécurisé via CinetPay : Orange Money, Moov Money ou carte bancaire, au choix sur le guichet CinetPay. Tu recevras une demande de confirmation sur ton téléphone.",
   supportsRedirect: true,
 
   isEnabled() {
-    const { apikey, siteId } = config();
-    return Boolean(apikey && siteId);
+    const { apiKey, apiPassword } = config();
+    return Boolean(apiKey && apiPassword);
   },
 
   async createIntent(input: CreateIntentInput): Promise<CreateIntentResult> {
-    const { apikey, siteId } = config();
+    const auth = await getAccessToken();
+    if (!auth.token) {
+      return {
+        status: "FAILED",
+        message: "Le paiement en ligne est momentanément indisponible. Ta commande n'a pas été débitée.",
+        raw: auth.raw ?? { error: auth.error },
+      };
+    }
+
+    const { firstName, lastName } = splitName(input.buyer.name);
 
     try {
-      const { json } = await postJson("/payment", {
-        apikey,
-        site_id: siteId,
-        // transaction_id fait office de référence marchande : rejouer la même
-        // requête avec cette valeur ne crée pas de second paiement chez CinetPay.
-        transaction_id: input.merchantRef,
-        amount: input.amountXof,
-        currency: "XOF",
-        description: input.description.slice(0, 100),
-        notify_url: input.notifyUrl,
-        return_url: input.returnUrl,
-        // Aucun filtre de canal : CinetPay propose Orange Money, Moov Money,
-        // Wave et carte bancaire selon ce qui est activé sur le compte marchand.
-        lang: "fr",
-        customer_name: input.buyer.name.slice(0, 60),
-        customer_phone_number: input.buyer.phone,
-        customer_email: input.buyer.email ?? "client@2ie.bf",
-        metadata: JSON.stringify({ order: input.orderReference, ...input.metadata }),
+      const { ok, json } = await requestJson("/v1/payment", {
+        method: "POST",
+        token: auth.token,
+        body: {
+          currency: "XOF",
+          merchant_transaction_id: input.merchantRef,
+          amount: input.amountXof,
+          success_url: input.returnUrl,
+          failed_url: `${input.returnUrl}?echec=1`,
+          notify_url: input.notifyUrl,
+          lang: "fr",
+          designation: input.description.slice(0, 100),
+          client_first_name: firstName,
+          client_last_name: lastName,
+          client_phone_number: normalizePhone(input.buyer.phone),
+          client_email: input.buyer.email ?? "client@2iemarket.bf",
+          // false : l'acheteur choisit Orange Money, Moov ou carte sur le
+          // guichet CinetPay, sans imposer payment_method ni otp_code.
+          direct_pay: false,
+        },
       });
 
-      const code = String(json?.code ?? "");
-      if (code !== "201" || !json?.data?.payment_url) {
+      const code = Number(json?.code);
+      if (!ok || ![200, 201].includes(code) || !json?.payment_url) {
         return {
           status: "FAILED",
           message:
             json?.message ??
-            "Le paiement Mobile Money n'a pas pu être initialisé. Réessaie dans un instant.",
+            "Le paiement n'a pas pu être initialisé. Réessaie dans un instant.",
           raw: json,
         };
       }
 
       return {
         status: "PENDING",
-        checkoutUrl: json.data.payment_url as string,
-        providerTxnId: json.data.payment_token ? String(json.data.payment_token) : null,
-        notifyToken: json.data.payment_token ? String(json.data.payment_token) : null,
+        checkoutUrl: String(json.payment_url),
+        providerTxnId: json.transaction_id ? String(json.transaction_id) : null,
+        notifyToken: json.notify_token ? String(json.notify_token) : null,
         raw: json,
       };
     } catch (error) {
@@ -161,19 +245,33 @@ export const cinetpayProvider: PaymentProvider = {
   },
 
   async verifyPayment(input: VerifyPaymentInput): Promise<VerifyPaymentResult> {
-    const { apikey, siteId } = config();
+    const auth = await getAccessToken();
+    if (!auth.token) {
+      return { status: "PENDING", raw: { error: auth.error } };
+    }
+
+    // Le statut peut être interrogé par merchant_transaction_id, transaction_id
+    // ou payment_token : la référence marchande est toujours connue.
+    const identifier = input.providerTxnId || input.merchantRef;
 
     try {
-      const { json } = await postJson("/payment/check", {
-        apikey,
-        site_id: siteId,
-        transaction_id: input.merchantRef,
-      });
+      const { ok, json } = await requestJson(
+        `/v1/payment/${encodeURIComponent(identifier)}`,
+        { method: "GET", token: auth.token },
+      );
+
+      if (!ok) {
+        return { status: "PENDING", raw: json };
+      }
+
+      const amount = Number(json?.amount ?? json?.data?.amount);
 
       return {
-        status: normalizeStatus(json?.data?.status),
-        providerTxnId: json?.data?.operator_id ?? input.providerTxnId ?? null,
-        amountXof: Number(json?.data?.amount ?? 0) || null,
+        status: normalizeStatus(json?.status ?? json?.data?.status),
+        providerTxnId: json?.transaction_id
+          ? String(json.transaction_id)
+          : (input.providerTxnId ?? null),
+        amountXof: Number.isFinite(amount) && amount > 0 ? amount : null,
         raw: json,
       };
     } catch (error) {
@@ -185,13 +283,8 @@ export const cinetpayProvider: PaymentProvider = {
   },
 
   parseWebhook(rawBody: string): ParsedWebhook | null {
-    let body: any;
-    try {
-      body = JSON.parse(rawBody);
-    } catch {
-      return null;
-    }
-    if (!body || typeof body !== "object") return null;
+    const body = parseCinetpayWebhookBody(rawBody);
+    if (!body) return null;
 
     const merchantRef =
       body.merchant_transaction_id ?? body.transaction_id ?? body.cpm_trans_id ?? null;
@@ -199,8 +292,10 @@ export const cinetpayProvider: PaymentProvider = {
 
     return {
       merchantRef: String(merchantRef),
-      providerEventId: String(body.transaction_id ?? body.cpm_trans_id ?? merchantRef),
-      eventType: body.cpm_result ? `cpm_result:${body.cpm_result}` : "payment.notification",
+      providerEventId: String(
+        body.transaction_id ?? body.notify_token ?? merchantRef,
+      ),
+      eventType: "payment.notification",
       notifyToken: body.notify_token ? String(body.notify_token) : null,
       raw: body,
     };

@@ -14,11 +14,17 @@ export function formatXof(amount: number): string {
  *
  * Le prix affiché reste le prix payé par l'acheteur. La commission est déduite
  * de la part du vendeur (95 % reversés), jamais ajoutée au prix client.
+ *
+ * Taux piloté par PLATFORM_FEE_BPS (500 pb = 5 %). Une valeur absente, invalide
+ * ou nulle retombe sur 500 pb pour que la commission reste toujours de 5 %.
  */
-export const PLATFORM_COMMISSION_RATE = 0.05;
+const configuredBps = Number(process.env.PLATFORM_FEE_BPS ?? 500);
 
 /** Commission plateforme, en points de base (100 pb = 1 %). */
-export const PLATFORM_FEE_BPS = Number(process.env.PLATFORM_FEE_BPS ?? 0);
+export const PLATFORM_FEE_BPS =
+  Number.isFinite(configuredBps) && configuredBps > 0 ? configuredBps : 500;
+
+export const PLATFORM_COMMISSION_RATE = PLATFORM_FEE_BPS / 10_000;
 
 /**
  * Décompose un montant payé en ligne en commission (5 %) et net vendeur (95 %).
@@ -36,10 +42,10 @@ export function computeFeeBreakdown(grossAmount: number): {
 }
 
 /**
- * Calcule la commission. À 0 pb (MVP), la marketplace ne prend rien :
- * le prix affiché est le prix payé.
+ * Calcule la commission à partir de PLATFORM_FEE_BPS (500 pb = 5 %).
+ * Conservé pour les appels historiques ; computeFeeBreakdown donne le détail
+ * commission + net vendeur.
  */
 export function computeFees(subtotalXof: number): number {
-  if (!Number.isFinite(PLATFORM_FEE_BPS) || PLATFORM_FEE_BPS <= 0) return 0;
   return Math.round((subtotalXof * PLATFORM_FEE_BPS) / 10_000);
 }
