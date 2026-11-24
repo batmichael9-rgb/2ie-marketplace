@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, LayoutGrid, Search, X } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ChevronRight, LayoutGrid, Search, X } from "lucide-react";
 import { CATEGORIES, type CatalogCategory } from "@/lib/categories";
 import { CAMPUSES, CAMPUS_LABELS, matchesSearchQuery } from "@/lib/domain";
 import { ProductCard, type ProductCardData } from "./product-card";
@@ -62,11 +62,6 @@ export function CatalogBrowser({
       : null,
   );
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const categoryBarRef = useRef<HTMLDivElement>(null);
-
-  function scrollCategories(direction: -1 | 1) {
-    categoryBarRef.current?.scrollBy({ left: direction * 220, behavior: "smooth" });
-  }
 
   // Recherche intelligente : le mode est explicite pour ne pas envoyer chaque
   // frappe à l'API. Les résultats classés et la phrase de l'assistant arrivent
@@ -293,66 +288,6 @@ export function CatalogBrowser({
             </span>
             <ChevronRight className="size-4" aria-hidden />
           </button>
-
-          {/* Rangée de catégories glissante : doublon assumé de la sidebar, pratique sur mobile. */}
-          <div className="relative w-full max-w-full">
-            <div
-              ref={categoryBarRef}
-              className="no-scrollbar flex w-full max-w-full snap-x items-center gap-2 overflow-x-auto scroll-smooth touch-pan-x pb-1 lg:px-7"
-            >
-              <button
-                type="button"
-                onClick={() => setCategory(null)}
-                aria-pressed={category === null}
-                className={`shrink-0 snap-start whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                  category === null
-                    ? "bg-teal-700 text-white shadow-sm"
-                    : "border border-slate-200 bg-white text-slate-600 hover:border-teal-300 hover:text-teal-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-teal-500/40 dark:hover:text-teal-300"
-                }`}
-              >
-                Tout
-              </button>
-
-              {CATEGORIES.map((item) => {
-                const Icon = item.icon;
-                const active = category === item.slug;
-                return (
-                  <button
-                    key={item.slug}
-                    type="button"
-                    onClick={() => setCategory(item.slug)}
-                    aria-pressed={active}
-                    title={item.name}
-                    className={`inline-flex shrink-0 snap-start items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                      active
-                        ? "bg-teal-700 text-white shadow-sm"
-                        : "border border-slate-200 bg-white text-slate-600 hover:border-teal-300 hover:text-teal-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-teal-500/40 dark:hover:text-teal-300"
-                    }`}
-                  >
-                    <Icon className="size-4" aria-hidden />
-                    {item.name}
-                  </button>
-                );
-              })}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => scrollCategories(-1)}
-              aria-label="Faire défiler les catégories vers la gauche"
-              className="btn-ghost absolute left-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-full bg-white/95 !p-1.5 shadow-sm lg:inline-flex dark:bg-slate-900/95"
-            >
-              <ChevronLeft className="size-4" aria-hidden />
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollCategories(1)}
-              aria-label="Faire défiler les catégories vers la droite"
-              className="btn-ghost absolute right-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-full bg-white/95 !p-1.5 shadow-sm lg:inline-flex dark:bg-slate-900/95"
-            >
-              <ChevronRight className="size-4" aria-hidden />
-            </button>
-          </div>
 
           {!aiMode && recommended.length > 0 ? (
             <section aria-labelledby="recommended-heading">
