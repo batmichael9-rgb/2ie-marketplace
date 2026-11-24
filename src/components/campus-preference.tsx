@@ -5,6 +5,12 @@ import { CAMPUSES } from "@/lib/domain";
 
 const STORAGE_KEY = "2ie-market-campus";
 
+function writeCampusCookie(value: string) {
+  document.cookie = value
+    ? `${STORAGE_KEY}=${encodeURIComponent(value)}; path=/; max-age=31536000; samesite=lax`
+    : `${STORAGE_KEY}=; path=/; max-age=0; samesite=lax`;
+}
+
 /**
  * Campus par défaut de l'accueil. Enregistré dans localStorage et lu par le
  * catalogue pour pré-filtrer les produits sans toucher au compte.
@@ -24,6 +30,8 @@ export function CampusPreference() {
     } else {
       window.localStorage.removeItem(STORAGE_KEY);
     }
+    // Le serveur lit ce cookie pour personnaliser « Recommandé pour vous ».
+    writeCampusCookie(value);
     setSaved(true);
   }
 

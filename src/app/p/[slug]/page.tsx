@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { after } from "next/server";
 import { CampusBadge } from "@/components/campus-badge";
 import { ClearIdempotency } from "@/components/clear-idempotency";
 import { ShareWhatsAppButton } from "@/components/share-whatsapp-button";
@@ -11,6 +12,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatDate, mobileMoneyLabel } from "@/lib/domain";
 import { formatXof } from "@/lib/money";
+import { recordPreferenceSignal } from "@/lib/preferences";
 import { startConversationAction } from "@/server/actions/messages";
 
 export async function generateMetadata({
@@ -63,6 +65,19 @@ export default async function ProductPage({
   if (!product || !product.isActive) notFound();
 
   const user = await getCurrentUser();
+
+  // Signal de consultation (hors vendeur propriétaire), écrit après l'envoi de
+  // la page : il alimente les recommandations sans ralentir la navigation.
+  if (user && user.id !== product.vendor.userId) {
+    after(() =>
+      recordPreferenceSignal({
+        userId: user.id,
+        actionType: "VIEW_PRODUCT",
+        productId: product.id,
+        categoryId: product.categoryId,
+      }),
+    );
+  }
 
   // Avis déjà publié par ce client : le formulaire passe en mode modification.
   const myReview = user

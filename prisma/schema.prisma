@@ -46,6 +46,7 @@ model User {
   buyerConversations  Conversation[] @relation("BuyerConversations")
   sellerConversations Conversation[] @relation("SellerConversations")
   messages            Message[]
+  preferenceSignals   UserPreferenceSignal[]
 }
 
 /// Code à usage unique (OTP) envoyé par email pour l'inscription ou la
@@ -98,6 +99,7 @@ model Category {
   position Int     @default(0)
 
   products Product[]
+  preferenceSignals UserPreferenceSignal[]
 }
 
 model Product {
@@ -125,6 +127,7 @@ model Product {
   shareLinks     ShareLink[]
   stockMovements StockMovement[]
   conversations  Conversation[]
+  preferenceSignals UserPreferenceSignal[]
 
   @@index([vendorId, isActive])
   @@index([categoryId])
@@ -326,6 +329,29 @@ model Message {
   sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Préférences & personnalisation
+// ---------------------------------------------------------------------------
+
+/// Signal d'intérêt très léger (une ligne par consultation/recherche/commande).
+/// Aucun contenu sensible : il sert uniquement à calculer les recommandations
+/// (catégories consultées, campus, fraîcheur) et reste supprimable sans impact.
+model UserPreferenceSignal {
+  id         String   @id @default(cuid())
+  userId     String
+  categoryId String?
+  productId  String?
+  actionType String // VIEW_PRODUCT | SEARCH | ORDER | REVIEW
+  query      String?
+  createdAt  DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  product  Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
 }
 
 // ---------------------------------------------------------------------------

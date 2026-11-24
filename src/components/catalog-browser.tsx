@@ -12,6 +12,26 @@ export type CatalogCard = ProductCardData & {
   categorySlug: string | null;
 };
 
+type AiSearchResponse = {
+  answer: string;
+  keywords: string[];
+  categories: string[];
+  products: ProductCardData[];
+  source: "gemini" | "local";
+};
+
+const CAMPUS_COOKIE = "2ie-market-campus";
+
+function writeCampusCookie(value: string | null) {
+  try {
+    document.cookie = value
+      ? `${CAMPUS_COOKIE}=${encodeURIComponent(value)}; path=/; max-age=31536000; samesite=lax`
+      : `${CAMPUS_COOKIE}=; path=/; max-age=0; samesite=lax`;
+  } catch {
+    // Cookies indisponibles : le filtrage local reste fonctionnel.
+  }
+}
+
 const CAMPUS_SHORT_LABELS: Record<string, string> = {
   [CAMPUSES[0]]: "Ouagadougou",
   [CAMPUSES[1]]: "Kamboinsé",
@@ -22,12 +42,16 @@ export function CatalogBrowser({
   initialCategory,
   initialCampus,
   cards,
+  recommended = [],
+  recommendedPersonalized = false,
   children,
 }: {
   initialQuery: string;
   initialCategory?: string;
   initialCampus?: string;
   cards: CatalogCard[];
+  recommended?: ProductCardData[];
+  recommendedPersonalized?: boolean;
   children: ReactNode;
 }) {
   const [query, setQuery] = useState(initialQuery);
@@ -39,16 +63,80 @@ export function CatalogBrowser({
   );
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  // Recherche intelligente : le mode est explicite pour ne pas envoyer chaque
+  // frappe à l'API. Les résultats classés et la phrase de l'assistant arrivent
+  // après un court debounce.
+  const [aiMode, setAiMode] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState<AiSearchResponse | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const trimmedQuery = query.trim();
+
   // Campus par défaut choisi dans Paramètres (le paramètre d'URL reste prioritaire).
   useEffect(() => {
-    if (initialCampus) return;
+    if (initialCampus) {
+      writeCampusCookie(initialCampus);
+      return;
+    }
     try {
-      const stored = window.localStorage.getItem("2ie-market-campus");
-      if (stored && CAMPUSES.includes(stored as (typeof CAMPUSES)[number])) setCampus(stored);
+      const stored = window.localStorage.getItem(CAMPUS_COOKIE);
+      if (stored && CAMPUSES.includes(stored as (typeof CAMPUSES)[number])) {
+        setCampus(stored);
+        // Le cookie permet au serveur de personnaliser la rangée « Recommandé ».
+        writeCampusCookie(stored);
+      }
     } catch {
       // localStorage indisponible (navigation privée stricte) : sans effet.
     }
   }, [initialCampus]);
+
+  useEffect(() => {
+    if (!aiMode || trimmedQuery.length < 3) {
+      setAiResult(null);
+      setAiError(null);
+      setAiLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setAiLoading(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch("/api/ai/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: trimmedQuery }),
+          signal: controller.signal,
+        });
+        const data = (await response.json()) as AiSearchResponse & { error?: string };
+        if (!response.ok) throw new Error(data.error ?? "Recherche indisponible.");
+
+        setAiResult(data);
+        setAiError(null);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setAiResult(null);
+        setAiError(
+          error instanceof Error
+            ? error.message
+            : "La recherche intelligente est momentanément indisponible.",
+        );
+      } finally {
+        if (!controller.signal.aborted) setAiLoading(false);
+      }
+    }, 550);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [aiMode, trimmedQuery]);
+
+  const aiProducts = (aiResult?.products ?? []).filter(
+    (product) => !campus || product.vendor.campus === campus,
+  );
 
   // Le catalogue est déjà en mémoire : chaque filtre s'applique sans aller-retour
   // réseau, donc les résultats apparaissent dès la première lettre.
@@ -62,14 +150,18 @@ export function CatalogBrowser({
     [cards, category, campus, query],
   );
 
-  const trimmedQuery = query.trim();
   const activeCategory = category ? CATEGORIES.find((item) => item.slug === category) : null;
   const hasFilters = Boolean(trimmedQuery || category || campus);
+
+  function setCampusFilter(next: string | null) {
+    setCampus(next);
+    writeCampusCookie(next);
+  }
 
   function resetFilters() {
     setQuery("");
     setCategory(null);
-    setCampus(null);
+    setCampusFilter(null);
   }
 
   function selectCategory(next: string | null) {
@@ -93,8 +185,12 @@ export function CatalogBrowser({
               enterKeyHint="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Rechercher un produit, une marque, un service…"
-              aria-label="Rechercher un produit"
+              placeholder={
+                aiMode
+                  ? "Ex. : de quoi réviser la nuit, pc pour autocad…"
+                  : "Rechercher un produit, une marque, un service…"
+              }
+              aria-label={aiMode ? "Décrire une recherche intelligente" : "Rechercher un produit"}
               autoComplete="off"
               className="w-full rounded-xl border-0 bg-white/95 py-2.5 pl-11 pr-10 text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/60"
             />
@@ -117,7 +213,7 @@ export function CatalogBrowser({
           </span>
           <button
             type="button"
-            onClick={() => setCampus(null)}
+            onClick={() => setCampusFilter(null)}
             className={`badge border px-3 py-1.5 transition-colors ${
               campus === null
                 ? "border-white bg-white text-teal-800"
@@ -130,7 +226,7 @@ export function CatalogBrowser({
             <button
               key={value}
               type="button"
-              onClick={() => setCampus((current) => (current === value ? null : value))}
+              onClick={() => setCampusFilter(campus === value ? null : value)}
               className={`badge border px-3 py-1.5 transition-colors ${
                 campus === value
                   ? "border-white bg-white text-teal-800"
@@ -150,6 +246,26 @@ export function CatalogBrowser({
               Réinitialiser
             </button>
           ) : null}
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAiMode((current) => !current)}
+            aria-pressed={aiMode}
+            className={`badge border px-3 py-1.5 font-semibold transition-colors ${
+              aiMode
+                ? "border-white bg-white text-teal-800"
+                : "border-amber-200/60 bg-amber-300/15 text-amber-50 hover:bg-amber-300/25"
+            }`}
+          >
+            ✨ Recherche IA{aiMode ? " · activée" : ""}
+          </button>
+          <span className="text-xs text-teal-100">
+            {aiMode
+              ? "Décris ton besoin en une phrase, l'assistant traduit en produits."
+              : "Ex. « de quoi réviser la nuit », « pc pour autocad »."}
+          </span>
         </div>
       </section>
 
@@ -233,43 +349,167 @@ export function CatalogBrowser({
             </div>
           </section>
 
-          <section>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-base font-bold dark:text-slate-100">
-                {activeCategory ? activeCategory.name : "Produits du campus"}
-                <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400">
-                  {results.length} produit{results.length > 1 ? "s" : ""}
-                </span>
-              </h2>
-              {trimmedQuery ? (
-                <p className="text-xs text-slate-500" aria-live="polite">
-                  Résultats pour « {trimmedQuery} »
+          {!aiMode && recommended.length > 0 ? (
+            <section aria-labelledby="recommended-heading">
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                <h2
+                  id="recommended-heading"
+                  className="text-base font-bold dark:text-slate-100"
+                >
+                  ✨ Recommandé pour vous
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {recommendedPersonalized
+                    ? "D'après tes recherches et ton campus"
+                    : "Les mieux notés et les plus récents du campus"}
                 </p>
-              ) : null}
-            </div>
-
-            {results.length === 0 ? (
-              <div className="card p-10 text-center">
-                <p className="text-lg font-semibold">Aucun produit trouvé</p>
-                <p className="mt-1 text-sm text-slate-600">
-                  {hasFilters
-                    ? "Essaie une autre catégorie, un autre campus ou un autre mot-clé."
-                    : "Le catalogue est vide. Lance `npm run db:seed` pour charger les données de démonstration."}
-                </p>
-                {hasFilters ? (
-                  <button type="button" onClick={resetFilters} className="btn-secondary mt-4">
-                    Réinitialiser les filtres
-                  </button>
-                ) : null}
               </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-                {results.map((card) => (
-                  <ProductCard key={card.slug} product={card} />
+              <div className="flex snap-x gap-3 overflow-x-auto pb-2">
+                {recommended.map((product) => (
+                  <div
+                    key={product.id}
+                    className="w-40 shrink-0 snap-start sm:w-44"
+                  >
+                    <ProductCard product={product} />
+                  </div>
                 ))}
               </div>
-            )}
-          </section>
+            </section>
+          ) : null}
+
+          {aiMode ? (
+            <section className="card p-4" aria-live="polite">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-base font-bold dark:text-slate-100">
+                  ✨ Assistant 2iE
+                </h2>
+                {aiResult ? (
+                  <span className="badge bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300">
+                    {aiResult.source === "gemini" ? "Gemini" : "Moteur local gratuit"}
+                  </span>
+                ) : null}
+              </div>
+
+              {trimmedQuery.length < 3 ? (
+                <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+                  Décris ce qu’il te faut comme à un ami : « de quoi réviser la nuit », « pc
+                  pour autocad », « manger vite entre deux cours »…
+                </p>
+              ) : aiLoading ? (
+                <p className="mt-3 animate-pulse text-sm text-slate-600 dark:text-slate-300">
+                  ✨ L’assistant parcourt le catalogue du campus…
+                </p>
+              ) : aiError ? (
+                <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">
+                  {aiError}
+                </p>
+              ) : aiResult ? (
+                <>
+                  <p className="mt-3 rounded-xl bg-teal-50 px-3 py-2 text-sm text-teal-900 dark:bg-teal-500/10 dark:text-teal-200">
+                    {aiResult.answer}
+                  </p>
+
+                  {aiResult.keywords.length > 0 ? (
+                    <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        Mots-clés :
+                      </span>
+                      {aiResult.keywords.slice(0, 10).map((keyword) => (
+                        <button
+                          key={keyword}
+                          type="button"
+                          onClick={() => setQuery(keyword)}
+                          className="badge bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                        >
+                          {keyword}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {aiResult.categories.length > 0 ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        Catégories :
+                      </span>
+                      {aiResult.categories.map((slug) => (
+                        <span
+                          key={slug}
+                          className="badge bg-teal-50 text-teal-800 dark:bg-teal-500/10 dark:text-teal-300"
+                        >
+                          {CATEGORIES.find((item) => item.slug === slug)?.name ?? slug}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
+                    {aiProducts.length} article{aiProducts.length > 1 ? "s" : ""} classé
+                    {aiProducts.length > 1 ? "s" : ""} par pertinence
+                  </p>
+
+                  {aiProducts.length === 0 ? (
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                      Aucun article disponible ne correspond pour l’instant. Essaie avec un
+                      autre campus ou reformule ta demande.
+                    </p>
+                  ) : (
+                    <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                      {aiProducts.map((product) => (
+                        <ProductCard key={product.id} product={product} />
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={() => setAiMode(false)}
+                className="mt-4 text-xs font-semibold text-teal-700 hover:underline dark:text-teal-400"
+              >
+                ← Revenir au catalogue classique
+              </button>
+            </section>
+          ) : (
+            <section>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-base font-bold dark:text-slate-100">
+                  {activeCategory ? activeCategory.name : "Produits du campus"}
+                  <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400">
+                    {results.length} produit{results.length > 1 ? "s" : ""}
+                  </span>
+                </h2>
+                {trimmedQuery ? (
+                  <p className="text-xs text-slate-500" aria-live="polite">
+                    Résultats pour « {trimmedQuery} »
+                  </p>
+                ) : null}
+              </div>
+
+              {results.length === 0 ? (
+                <div className="card p-10 text-center">
+                  <p className="text-lg font-semibold">Aucun produit trouvé</p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {hasFilters
+                      ? "Essaie une autre catégorie, un autre campus ou un autre mot-clé."
+                      : "Le catalogue est vide. Lance `npm run db:seed` pour charger les données de démonstration."}
+                  </p>
+                  {hasFilters ? (
+                    <button type="button" onClick={resetFilters} className="btn-secondary mt-4">
+                      Réinitialiser les filtres
+                    </button>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                  {results.map((card) => (
+                    <ProductCard key={card.slug} product={card} />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
         </div>
       </div>
 

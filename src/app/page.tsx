@@ -1,5 +1,9 @@
+import { cookies } from "next/headers";
 import { CatalogBrowser, type CatalogCard } from "@/components/catalog-browser";
+import { getCurrentUser } from "@/lib/auth";
+import { CAMPUSES } from "@/lib/domain";
 import { db } from "@/lib/db";
+import { getRecommendedProducts } from "@/lib/recommendations";
 import { ensureCatalogCategories } from "@/server/categories";
 
 export default async function CatalogPage({
@@ -9,6 +13,15 @@ export default async function CatalogPage({
 }) {
   const { q, categorie, campus } = await searchParams;
   const search = (q ?? "").trim();
+
+  // Campus habituel : paramètre d'URL prioritaire, sinon préférence enregistrée
+  // dans Paramètres (cookie synchronisé avec le localStorage).
+  const cookieCampus = (await cookies()).get("2ie-market-campus")?.value ?? null;
+  const preferredCampus =
+    [campus, cookieCampus].find(
+      (value): value is string =>
+        Boolean(value) && CAMPUSES.includes(value as (typeof CAMPUSES)[number]),
+    ) ?? null;
 
   // Les 27 catégories de référence sont créées à la première visite pour que
   // les produits puissent y être rattachés dès leur publication.
@@ -50,12 +63,17 @@ export default async function CatalogPage({
     searchText: `${product.name} ${product.description}`,
   }));
 
+  const user = await getCurrentUser();
+  const recommended = await getRecommendedProducts(user?.id ?? null, preferredCampus);
+
   return (
     <CatalogBrowser
       initialQuery={search}
       initialCategory={categorie}
       initialCampus={campus}
       cards={cards}
+      recommended={recommended.products}
+      recommendedPersonalized={recommended.personalized}
     >
       <p className="text-xs font-semibold uppercase tracking-wider text-teal-100">
         Institut 2iE · Ouagadougou

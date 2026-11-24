@@ -2,12 +2,14 @@
 
 import { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { appUrl, generateOrderReference } from "@/lib/domain";
 import { computeFees, formatXof } from "@/lib/money";
 import { applyPaymentStatus } from "@/lib/payments/apply";
 import { getProvider } from "@/lib/payments";
+import { recordPreferenceSignal } from "@/lib/preferences";
 import { notifyUserSafely } from "@/lib/push";
 import { reserveStock } from "@/lib/stock";
 import { checkoutSchema } from "@/lib/validators";
@@ -232,6 +234,16 @@ export async function createOrderAction(formData: FormData) {
 
     throw error;
   }
+
+  // --- Signal de commande (personnalisation) --------------------------------
+  after(() =>
+    recordPreferenceSignal({
+      userId: user.id,
+      actionType: "ORDER",
+      productId: product.id,
+      categoryId: product.categoryId,
+    }),
+  );
 
   // --- Notification Push du vendeur -----------------------------------------
   // Envoyée dès que la commande existe : un vendeur au téléphone la voit même
