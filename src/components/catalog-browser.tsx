@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ChevronRight, LayoutGrid, Search, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight, LayoutGrid, Search, X } from "lucide-react";
 import { CATEGORIES, type CatalogCategory } from "@/lib/categories";
 import { CAMPUSES, CAMPUS_LABELS, matchesSearchQuery } from "@/lib/domain";
 import { ProductCard, type ProductCardData } from "./product-card";
@@ -62,6 +62,11 @@ export function CatalogBrowser({
       : null,
   );
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const categoryBarRef = useRef<HTMLDivElement>(null);
+
+  function scrollCategories(direction: -1 | 1) {
+    categoryBarRef.current?.scrollBy({ left: direction * 220, behavior: "smooth" });
+  }
 
   // Recherche intelligente : le mode est explicite pour ne pas envoyer chaque
   // frappe à l'API. Les résultats classés et la phrase de l'assistant arrivent
@@ -294,10 +299,18 @@ export function CatalogBrowser({
             <ChevronRight className="size-4" aria-hidden />
           </button>
 
-          <div className="w-full max-w-full overflow-x-auto">
-            <nav
-              aria-label="Filtrer par catégorie"
-              className="no-scrollbar flex w-max min-w-full gap-2 py-2"
+          <div className="relative flex w-full max-w-full items-center">
+            <button
+              type="button"
+              onClick={() => scrollCategories(-1)}
+              aria-label="Faire défiler les catégories vers la gauche"
+              className="btn-ghost absolute left-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-full bg-white/95 !p-1.5 shadow-sm lg:inline-flex dark:bg-slate-900/95"
+            >
+              <ChevronLeft className="size-4" aria-hidden />
+            </button>
+            <div
+              ref={categoryBarRef}
+              className="no-scrollbar flex w-full items-center gap-2 overflow-x-auto touch-pan-x scroll-smooth py-2 lg:px-7"
             >
             <button
               type="button"
@@ -334,7 +347,15 @@ export function CatalogBrowser({
                 </button>
               );
             })}
-            </nav>
+            </div>
+            <button
+              type="button"
+              onClick={() => scrollCategories(1)}
+              aria-label="Faire défiler les catégories vers la droite"
+              className="btn-ghost absolute right-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-full bg-white/95 !p-1.5 shadow-sm lg:inline-flex dark:bg-slate-900/95"
+            >
+              <ChevronRight className="size-4" aria-hidden />
+            </button>
           </div>
 
           {!aiMode && recommended.length > 0 ? (
@@ -490,7 +511,7 @@ export function CatalogBrowser({
                   ) : null}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 w-full sm:grid-cols-3 lg:grid-cols-4">
                   {results.map((card) => (
                     <ProductCard key={card.slug} product={card} />
                   ))}

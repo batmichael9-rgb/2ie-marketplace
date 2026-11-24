@@ -29,9 +29,9 @@ export function ProductCard({ product }: { product: ProductCardData }) {
   return (
     <Link
       href={`/p/${product.slug}`}
-      className="card group flex flex-col overflow-hidden transition-shadow hover:shadow-md"
+      className="card group flex min-w-0 flex-col overflow-hidden transition-shadow hover:shadow-md"
     >
-      <div className="relative h-32 w-full overflow-hidden bg-slate-100 dark:bg-slate-800 sm:h-40">
+      <div className="relative w-full h-32 sm:h-40 overflow-hidden bg-slate-100 dark:bg-slate-800">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={image}
