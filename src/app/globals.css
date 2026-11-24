@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Mode sombre piloté par la classe `.dark` sur <html> (Tailwind v4).
+   Équivalent de `darkMode: "class"` : ThemeProvider ajoute/retire la classe
+   selon « clair », « sombre » ou « système ». */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-brand-50: #eefbf6;
   --color-brand-100: #d3f5e8;
@@ -15,27 +20,51 @@
   }
 
   body {
-    @apply bg-stone-50 text-slate-900 antialiased;
+    @apply bg-stone-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   }
 
   ::selection {
     @apply bg-teal-200;
   }
+
+  /* Les cartes sont le conteneur principal de contenu : on ajuste les tons de
+     texte et de séparation à l'intérieur pour rester lisible en mode sombre,
+     sans avoir à répéter `dark:` sur chaque paragraphe. */
+  .dark .card :where(.text-slate-900, .text-slate-800) {
+    color: #f1f5f9;
+  }
+  .dark .card :where(.text-slate-700, .text-slate-600) {
+    color: #cbd5e1;
+  }
+  .dark .card :where(.text-slate-500, .text-slate-400) {
+    color: #94a3b8;
+  }
+  .dark .card :where(.border-slate-200, .border-slate-100) {
+    border-color: #1e293b;
+  }
+  .dark .card :where(.bg-slate-50, .bg-slate-100) {
+    background-color: #1e293b;
+  }
+  .dark .card :where(.divide-slate-100) > :not([hidden]) ~ :not([hidden]) {
+    border-color: #1e293b;
+  }
 }
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-slate-200 bg-white shadow-sm;
+    @apply rounded-2xl border border-slate-200 bg-white shadow-sm
+           dark:border-slate-800 dark:bg-slate-900 dark:shadow-none;
   }
 
   .input {
     @apply w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-[15px] text-slate-900
-           placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20;
+           placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20
+           dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500;
   }
 
   .label {
-    @apply mb-1.5 block text-sm font-medium text-slate-700;
+    @apply mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300;
   }
 
   .btn,
@@ -51,11 +80,12 @@
   }
 
   .btn-secondary {
-    @apply border border-slate-300 bg-white text-slate-800 hover:bg-slate-50;
+    @apply border border-slate-300 bg-white text-slate-800 hover:bg-slate-50
+           dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800;
   }
 
   .btn-ghost {
-    @apply text-slate-600 hover:bg-slate-100;
+    @apply text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800;
   }
 
   .badge {

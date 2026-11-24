@@ -253,24 +253,30 @@ export default async function VendorDashboardPage({
             </p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="roomNumber" className="label">
-                Lieu de retrait <span className="font-normal text-slate-400">(facultatif)</span>
-              </label>
-              <input
-                id="roomNumber"
-                name="roomNumber"
-                maxLength={30}
-                className="input"
-                defaultValue={vendor.roomNumber ?? ""}
-                placeholder="Bât. B, ch. 214"
-              />
-            </div>
+          <div>
+            <label htmlFor="roomNumber" className="label">
+              Lieu de retrait <span className="font-normal text-slate-400">(facultatif)</span>
+            </label>
+            <input
+              id="roomNumber"
+              name="roomNumber"
+              maxLength={30}
+              className="input"
+              defaultValue={vendor.roomNumber ?? ""}
+              placeholder="Bât. B, ch. 214"
+            />
+          </div>
+
+          <fieldset className="space-y-3 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+            <legend className="px-1 text-sm font-semibold">Paiement & Mobile Money</legend>
+            <p className="text-xs text-slate-500">
+              Utilisé pour les paiements et les reversements de tes ventes.
+            </p>
 
             <div>
               <label htmlFor="momoNumber" className="label">
-                Mobile Money <span className="font-normal text-slate-400">(facultatif)</span>
+                Numéro Mobile Money{" "}
+                <span className="font-normal text-slate-400">(facultatif)</span>
               </label>
               <input
                 id="momoNumber"
@@ -282,23 +288,24 @@ export default async function VendorDashboardPage({
                 placeholder="+226 70 00 00 00"
               />
             </div>
-          </div>
 
-          <div>
-            <label htmlFor="momoOperator" className="label">
-              Opérateur Mobile Money
-            </label>
-            <select
-              id="momoOperator"
-              name="momoOperator"
-              className="input"
-              defaultValue={vendor.momoOperator ?? ""}
-            >
-              <option value="">Non précisé</option>
-              <option value="ORANGE_MONEY">Orange Money</option>
-              <option value="MOOV_MONEY">Moov Money</option>
-            </select>
-          </div>
+            <div>
+              <label htmlFor="momoOperator" className="label">
+                Opérateur Mobile Money
+              </label>
+              <select
+                id="momoOperator"
+                name="momoOperator"
+                className="input"
+                defaultValue={vendor.momoOperator ?? ""}
+              >
+                <option value="">Non précisé</option>
+                <option value="ORANGE_MONEY">Orange Money</option>
+                <option value="MOOV_MONEY">Moov Money</option>
+                <option value="WAVE">Wave</option>
+              </select>
+            </div>
+          </fieldset>
 
           <button type="submit" className="btn-primary">
             Enregistrer

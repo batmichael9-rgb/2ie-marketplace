@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { MobileMoneyFields } from "@/components/mobile-money-fields";
 import { PushNotificationsButton } from "@/components/push-notifications-button";
 import { requireUser } from "@/lib/auth";
 import { CAMPUSES, campusBadgeLabel } from "@/lib/domain";
@@ -113,6 +114,20 @@ export default async function ProfilePage({
               autoComplete="tel"
             />
           </div>
+        </div>
+
+        <div className="space-y-4 border-t border-slate-200 pt-4 dark:border-slate-800">
+          <div>
+            <h2 className="text-base font-bold">Paiement & Mobile Money</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Ton numéro pour les paiements et, si tu vends, les reversements.
+            </p>
+          </div>
+          <MobileMoneyFields
+            idPrefix="profile"
+            number={user.mobileMoneyNumber}
+            provider={user.mobileMoneyProvider}
+          />
         </div>
 
         {vendor ? (

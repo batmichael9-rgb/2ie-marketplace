@@ -14,7 +14,7 @@ export function Stars({
           .map((star) => (value >= star - 0.5 ? "★" : "☆"))
           .join("")}
       </span>
-      <span className="text-slate-500">
+      <span className="text-slate-500 dark:text-slate-400">
         {value > 0 ? value.toFixed(1) : "Pas encore noté"}
         {typeof count === "number" && count > 0 ? ` (${count})` : ""}
       </span>

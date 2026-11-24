@@ -219,6 +219,20 @@ export function campusBadgeLabel(campus: string | null | undefined): string | nu
   return label ? `📍 ${label}` : null;
 }
 
+export const MOBILE_MONEY_PROVIDERS = ["ORANGE_MONEY", "MOOV_MONEY", "WAVE"] as const;
+export type MobileMoneyProvider = (typeof MOBILE_MONEY_PROVIDERS)[number];
+
+export const MOBILE_MONEY_LABELS: Record<MobileMoneyProvider, string> = {
+  ORANGE_MONEY: "Orange Money",
+  MOOV_MONEY: "Moov Money",
+  WAVE: "Wave",
+};
+
+export function mobileMoneyLabel(provider: string | null | undefined): string | null {
+  if (!provider) return null;
+  return MOBILE_MONEY_LABELS[provider as MobileMoneyProvider] ?? provider;
+}
+
 export function formatDate(value: Date | string): string {
   const date = typeof value === "string" ? new Date(value) : value;
   return new Intl.DateTimeFormat("fr-FR", {

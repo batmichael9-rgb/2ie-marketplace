@@ -8,6 +8,7 @@ import {
   LayoutGrid,
   LogOut,
   MessageCircle,
+  Settings,
   Store,
   User,
 } from "lucide-react";
@@ -34,7 +35,7 @@ export function MobileNav({ isLoggedIn, isVendor, firstName, unreadCount }: Mobi
   }, [pathname]);
 
   const linkClass =
-    "flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100";
+    "flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800";
 
   return (
     <div className="relative md:hidden">
@@ -85,10 +86,10 @@ export function MobileNav({ isLoggedIn, isVendor, firstName, unreadCount }: Mobi
           />
           <nav
             id="menu-mobile"
-            className="absolute right-0 top-full z-40 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-lg"
+            className="absolute right-0 top-full z-40 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-800 dark:bg-slate-900"
           >
             {isLoggedIn && firstName ? (
-              <p className="px-3 py-2 text-sm font-semibold text-slate-900">
+              <p className="px-3 py-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                 Bonjour, {firstName} 👋
               </p>
             ) : null}
@@ -127,7 +128,12 @@ export function MobileNav({ isLoggedIn, isVendor, firstName, unreadCount }: Mobi
                   Mon profil
                 </Link>
 
-                <form action={logoutAction} className="mt-1 border-t border-slate-100 pt-1">
+                <Link href="/parametres" className={linkClass} onClick={() => setOpen(false)}>
+                  <Settings className="size-4 text-slate-500" aria-hidden />
+                  Paramètres
+                </Link>
+
+                <form action={logoutAction} className="mt-1 border-t border-slate-100 pt-1 dark:border-slate-800">
                   <button
                     type="submit"
                     className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-700 hover:bg-red-50"

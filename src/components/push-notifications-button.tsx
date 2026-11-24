@@ -2,16 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-type Status =
-  | "loading"
-  | "unsupported"
-  | "idle"
-  | "asking"
-  | "subscribed"
-  | "denied"
-  | "error";
-
-type Feedback = { status: "idle" | "sending" | "ok" | "error"; message?: string };
+type Status = "loading" | "unsupported" | "off" | "on" | "denied" | "error";
 
 const VAPID_PUBLIC_KEY = (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "").trim();
 
@@ -50,10 +41,7 @@ async function saveSubscription(subscription: PushSubscription): Promise<void> {
   if (!response.ok) throw new Error(`subscribe failed: ${response.status}`);
 }
 
-/**
- * Crée (ou récupère) l'abonnement du navigateur puis l'enregistre en base.
- * Utilisé à la fois pour l'activation initiale et après une réinitialisation.
- */
+/** Crée (ou récupère) l'abonnement du navigateur puis l'enregistre en base. */
 async function ensureSubscription(): Promise<PushSubscription> {
   const registration = await navigator.serviceWorker.register("/sw.js");
   await navigator.serviceWorker.ready;
@@ -71,20 +59,17 @@ async function ensureSubscription(): Promise<PushSubscription> {
 }
 
 /**
- * Bannière discrète d'activation des notifications sur l'appareil courant.
+ * Interrupteur des notifications Push de l'appareil courant.
  *
- * Le service worker (public/sw.js) reçoit les pushs ; ici on crée l'abonnement
- * et on l'envoie au serveur. Rien n'est demandé tant que l'utilisateur ne
- * clique pas : les navigateurs bloquent les demandes de permission spontanées.
- *
- * Deux boutons de diagnostic : « Tester » envoie une vraie notification et
- * affiche le statusCode / body renvoyé par web-push, « Réinitialiser » repart
- * d'un abonnement propre quand l'ancien est mort ou lié à d'autres clés VAPID.
+ * - « Activer » : demande la permission, crée l'abonnement et l'enregistre.
+ * - « Désactiver » : désabonne le navigateur et supprime l'abonnement serveur.
+ * - « Réinitialiser » : uniquement en cas d'erreur (abonnement mort ou lié à
+ *   d'anciennes clés VAPID) ; repart d'un abonnement propre.
  */
 export function PushNotificationsButton() {
   const [status, setStatus] = useState<Status>("loading");
-  const [test, setTest] = useState<Feedback>({ status: "idle" });
-  const [resetting, setResetting] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!VAPID_PUBLIC_KEY) {
@@ -106,11 +91,10 @@ export function PushNotificationsButton() {
       .register("/sw.js")
       .then((registration) => registration.pushManager.getSubscription())
       .then((subscription) => {
-        if (cancelled) return;
-        setStatus(subscription ? "subscribed" : "idle");
+        if (!cancelled) setStatus(subscription ? "on" : "off");
       })
       .catch(() => {
-        if (!cancelled) setStatus("idle");
+        if (!cancelled) setStatus("off");
       });
 
     return () => {
@@ -119,33 +103,58 @@ export function PushNotificationsButton() {
   }, []);
 
   async function enable() {
-    if (status === "asking" || status === "subscribed") return;
-    setStatus("asking");
+    if (busy || status === "on") return;
+    setBusy(true);
+    setMessage(null);
 
     try {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
-        setStatus(permission === "denied" ? "denied" : "idle");
+        setStatus(permission === "denied" ? "denied" : "off");
         return;
       }
 
       await ensureSubscription();
-      setStatus("subscribed");
+      setStatus("on");
     } catch (error) {
       console.error("Activation des notifications impossible", error);
       setStatus("error");
+      setMessage("Activation impossible : réessaie ou réinitialise l'appareil.");
+    } finally {
+      setBusy(false);
     }
   }
 
-  /**
-   * Appareil réinitialisé : on désabonne côté navigateur, on purge les
-   * abonnements de l'utilisateur côté serveur, puis on recrée un abonnement
-   * neuf avec la clé VAPID publique courante.
-   */
-  async function resetDevice() {
-    if (resetting) return;
-    setResetting(true);
-    setTest({ status: "idle" });
+  async function disable() {
+    if (busy) return;
+    setBusy(true);
+    setMessage(null);
+
+    try {
+      const registration = await navigator.serviceWorker.getRegistration("/sw.js");
+      const existing = await registration?.pushManager.getSubscription();
+      if (existing) await existing.unsubscribe();
+    } catch (error) {
+      console.error("Désabonnement local impossible", error);
+    }
+
+    try {
+      await fetch("/api/push/subscribe", { method: "DELETE" });
+      setStatus("off");
+      setMessage("Notifications désactivées sur cet appareil.");
+    } catch (error) {
+      console.error("Suppression de l'abonnement serveur impossible", error);
+      setStatus("error");
+      setMessage("Le serveur n'a pas pu être mis à jour. Réessaie.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reset() {
+    if (busy) return;
+    setBusy(true);
+    setMessage(null);
 
     try {
       try {
@@ -154,7 +163,7 @@ export function PushNotificationsButton() {
         const existing = await registration.pushManager.getSubscription();
         if (existing) await existing.unsubscribe();
       } catch (error) {
-        // On continue quand même : le serveur doit aussi être nettoyé.
+        // On poursuit : le serveur doit aussi être nettoyé.
         console.error("Désabonnement local impossible", error);
       }
 
@@ -163,143 +172,87 @@ export function PushNotificationsButton() {
       if (Notification.permission !== "granted") {
         const permission = await Notification.requestPermission();
         if (permission !== "granted") {
-          setStatus(permission === "denied" ? "denied" : "idle");
-          setTest({
-            status: "error",
-            message: "Permission refusée : autorise les notifications dans le navigateur.",
-          });
+          setStatus(permission === "denied" ? "denied" : "off");
           return;
         }
       }
 
       await ensureSubscription();
-      setStatus("subscribed");
-      setTest({
-        status: "ok",
-        message:
-          "Appareil réinitialisé : nouvel abonnement enregistré. Utilise « Tester » pour vérifier le son.",
-      });
+      setStatus("on");
+      setMessage("Appareil réinitialisé : notifications à nouveau actives.");
     } catch (error) {
       console.error("Réinitialisation des notifications impossible", error);
       setStatus("error");
-      setTest({
-        status: "error",
-        message: "Réinitialisation échouée : réessaie ou réactive les notifications.",
-      });
+      setMessage("Réinitialisation échouée. Réactive les notifications dans le navigateur.");
     } finally {
-      setResetting(false);
-    }
-  }
-
-  // Diagnostic : envoie une vraie notification au téléphone courant et affiche
-  // la raison précise en cas d'échec (VAPID, abonnement, service de push).
-  async function sendTestNotification() {
-    if (test.status === "sending") return;
-    setTest({ status: "sending" });
-
-    try {
-      const response = await fetch("/api/push/test", { method: "POST" });
-      const data = (await response.json().catch(() => null)) as
-        | { ok?: boolean; message?: string }
-        | null;
-
-      if (!response.ok || !data?.ok) {
-        setTest({
-          status: "error",
-          message: data?.message ?? `Échec de l'envoi (${response.status}).`,
-        });
-        return;
-      }
-
-      setTest({
-        status: "ok",
-        message: data.message ?? "Notification de test envoyée.",
-      });
-    } catch {
-      setTest({ status: "error", message: "Impossible de contacter le serveur." });
+      setBusy(false);
     }
   }
 
   if (status === "loading" || status === "unsupported") return null;
 
-  if (status === "subscribed") {
+  if (status === "on") {
     return (
-      <div className="rounded-xl bg-teal-50 px-3 py-2 text-xs text-teal-900">
+      <div className="rounded-xl bg-teal-50 px-3 py-2 text-xs text-teal-900 dark:bg-teal-500/10 dark:text-teal-200">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="flex items-center gap-2">
+          <p className="flex items-center gap-2 font-medium">
             <span aria-hidden>🔔</span>
             Notifications activées sur ce téléphone.
           </p>
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={sendTestNotification}
-              disabled={test.status === "sending"}
-              className="btn-secondary !py-1.5 !text-xs"
-            >
-              {test.status === "sending" ? "Envoi…" : "🔔 Tester sur ce téléphone"}
-            </button>
-            <button
-              type="button"
-              onClick={resetDevice}
-              disabled={resetting}
-              className="btn-ghost !py-1.5 !text-xs"
-            >
-              {resetting ? "Réinitialisation…" : "🔄 Réinitialiser sur cet appareil"}
-            </button>
-          </div>
-        </div>
-
-        {test.message ? (
-          <p
-            role="status"
-            className={`mt-1.5 ${test.status === "error" ? "text-red-700" : "text-teal-800"}`}
+          <button
+            type="button"
+            onClick={disable}
+            disabled={busy}
+            className="btn-ghost ml-auto !py-1.5 !text-xs"
           >
-            {test.message}
-          </p>
-        ) : null}
+            {busy ? "Désactivation…" : "Désactiver"}
+          </button>
+        </div>
+        {message ? <p className="mt-1.5 text-teal-800 dark:text-teal-300">{message}</p> : null}
       </div>
     );
   }
 
   return (
-    <div className="space-y-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2">
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={enable}
-          disabled={status === "asking" || status === "denied"}
+          disabled={busy || status === "denied"}
           className="btn-secondary !py-2 !text-xs"
         >
-          {status === "asking" ? "Activation…" : "🔔 Activer les notifications sur ce téléphone"}
+          {busy ? "Activation…" : "🔔 Activer les notifications sur ce téléphone"}
         </button>
 
         {status === "error" ? (
           <button
             type="button"
-            onClick={resetDevice}
-            disabled={resetting}
+            onClick={reset}
+            disabled={busy}
             className="btn-ghost !py-2 !text-xs"
           >
-            {resetting ? "Réinitialisation…" : "🔄 Réinitialiser sur cet appareil"}
+            🔄 Réinitialiser
           </button>
         ) : null}
 
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-slate-500 dark:text-slate-400">
           {status === "denied"
             ? "Notifications bloquées : autorise-les dans les réglages du navigateur."
             : status === "error"
-              ? "Échec de l'activation, réessaie dans un instant."
+              ? "Une erreur est survenue : réessaie ou réinitialise l'appareil."
               : "Reçois les nouvelles commandes et les changements de statut en direct."}
         </span>
       </div>
 
-      {test.message ? (
+      {message ? (
         <p
           role="status"
-          className={`text-xs ${test.status === "error" ? "text-red-700" : "text-teal-800"}`}
+          className={`mt-1.5 text-xs ${
+            status === "error" ? "text-red-700 dark:text-red-400" : "text-teal-700 dark:text-teal-300"
+          }`}
         >
-          {test.message}
+          {message}
         </p>
       ) : null}
     </div>

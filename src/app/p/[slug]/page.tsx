@@ -4,16 +4,14 @@ import { notFound } from "next/navigation";
 import { CampusBadge } from "@/components/campus-badge";
 import { ClearIdempotency } from "@/components/clear-idempotency";
 import { ShareWhatsAppButton } from "@/components/share-whatsapp-button";
+import { ProductReviewForm } from "@/components/product-review-form";
 import { StockBadge } from "@/components/stock-badge";
 import { Stars } from "@/components/stars";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { formatDate } from "@/lib/domain";
+import { formatDate, mobileMoneyLabel } from "@/lib/domain";
 import { formatXof } from "@/lib/money";
-import { createReviewAction } from "@/server/actions/reviews";
 import { startConversationAction } from "@/server/actions/messages";
-
-const REVIEWABLE_STATUSES = ["PAID", "VENDOR_CONFIRMED", "READY_FOR_PICKUP", "COMPLETED"];
 
 export async function generateMetadata({
   params,
@@ -66,18 +64,10 @@ export default async function ProductPage({
 
   const user = await getCurrentUser();
 
-  // Un avis n'est possible qu'après un achat : on cherche une ligne de commande
-  // du client pour ce produit qui n'a pas encore été notée.
-  const reviewableItem = user
-    ? await db.orderItem.findFirst({
-        where: {
-          productId: product.id,
-          review: null,
-          order: { buyerId: user.id, status: { in: REVIEWABLE_STATUSES } },
-        },
-        select: { id: true },
-      })
-    : null;
+  // Avis déjà publié par ce client : le formulaire passe en mode modification.
+  const myReview = user
+    ? product.reviews.find((review) => review.buyerId === user.id)
+    : undefined;
 
   const ratingCount = product.reviews.length;
   const ratingAverage =
@@ -153,7 +143,7 @@ export default async function ProductPage({
 
             {product.reviews.length === 0 ? (
               <p className="mt-3 text-sm text-slate-500">
-                Aucun avis pour le moment. Les avis proviennent uniquement d&apos;achats vérifiés.
+                Aucun avis pour le moment. Sois le premier à donner ton avis sur ce produit.
               </p>
             ) : (
               <ul className="mt-4 space-y-4">
@@ -165,40 +155,31 @@ export default async function ProductPage({
                     </div>
                     <Stars value={review.rating} />
                     {review.comment ? (
-                      <p className="mt-1 text-sm text-slate-700">{review.comment}</p>
+                      <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
+                        {review.comment}
+                      </p>
                     ) : null}
-                    <span className="badge mt-2 bg-teal-50 text-teal-700">Achat vérifié</span>
+                    {review.orderItemId ? (
+                      <span className="badge mt-2 bg-teal-50 text-teal-700">Achat vérifié</span>
+                    ) : null}
                   </li>
                 ))}
               </ul>
             )}
 
-            {reviewableItem ? (
-              <form action={createReviewAction} className="mt-5 space-y-3 border-t border-slate-200 pt-4">
-                <input type="hidden" name="orderItemId" value={reviewableItem.id} />
-                <p className="text-sm font-semibold">Tu as acheté ce produit : laisse un avis</p>
-                <div className="flex items-center gap-2">
-                  <label htmlFor="rating" className="text-sm text-slate-600">
-                    Note
-                  </label>
-                  <select id="rating" name="rating" className="input !w-auto py-1.5" defaultValue="5">
-                    {[5, 4, 3, 2, 1].map((value) => (
-                      <option key={value} value={value}>
-                        {"★".repeat(value)} ({value}/5)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <textarea
-                  name="comment"
-                  rows={3}
-                  className="input"
-                  placeholder="Produit conforme ? Vendeur réactif ? (visible publiquement)"
-                />
-                <button type="submit" className="btn-primary">
-                  Publier mon avis
-                </button>
-              </form>
+            {user && user.id !== product.vendor.userId ? (
+              <ProductReviewForm
+                productId={product.id}
+                initialRating={myReview?.rating ?? 0}
+                initialComment={myReview?.comment ?? ""}
+              />
+            ) : !user ? (
+              <p className="mt-5 border-t border-slate-200 pt-4 text-sm text-slate-500">
+                <Link href={`/connexion?suivant=/p/${product.slug}`} className="font-semibold text-teal-700 hover:underline">
+                  Connecte-toi
+                </Link>{" "}
+                pour laisser un avis sur ce produit.
+              </p>
             ) : null}
           </section>
         </div>
@@ -207,7 +188,14 @@ export default async function ProductPage({
           <div className="card p-5">
             <StockBadge product={product} />
             <h1 className="mt-2 text-xl font-bold leading-tight">{product.name}</h1>
-            <p className="mt-2 text-2xl font-extrabold text-teal-800">
+            <div className="mt-1">
+              {ratingCount > 0 ? (
+                <Stars value={ratingAverage} count={ratingCount} />
+              ) : (
+                <span className="badge bg-slate-100 text-slate-600">Nouveau · aucun avis</span>
+              )}
+            </div>
+            <p className="mt-2 text-2xl font-extrabold text-teal-800 dark:text-teal-400">
               {formatXof(product.priceXof)}
             </p>
 
@@ -262,8 +250,11 @@ export default async function ProductPage({
               <p className="mt-2 text-sm text-slate-600">{product.vendor.description}</p>
             ) : null}
             {product.vendor.momoNumber ? (
-              <p className="mt-2 text-sm text-slate-700">
+              <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">
                 <strong>Mobile Money :</strong> {product.vendor.momoNumber}
+                {mobileMoneyLabel(product.vendor.momoOperator)
+                  ? ` (${mobileMoneyLabel(product.vendor.momoOperator)})`
+                  : ""}
               </p>
             ) : null}
           </div>

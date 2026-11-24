@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import Link from "next/link";
 import "./globals.css";
 import { getCurrentUser } from "@/lib/auth";
@@ -6,7 +7,11 @@ import { appUrl } from "@/lib/domain";
 import { HeaderActions } from "@/components/header-actions";
 import { MobileNav } from "@/components/mobile-nav";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
+import { ThemeProvider } from "@/components/theme-provider";
 import { countUnreadMessages } from "@/lib/messages";
+
+// Applique le thème avant le premier rendu pour éviter un flash blanc.
+const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("2ie-market-theme");var d=t==="dark"||(t!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);document.documentElement.style.colorScheme=d?"dark":"light";}catch(e){}})();`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl()),
@@ -53,9 +58,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const unreadCount = user ? await countUnreadMessages(user.id) : 0;
 
   return (
-    <html lang="fr">
+    <html lang="fr" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="flex min-h-dvh flex-col">
-        <header className="sticky top-0 z-30 border-b border-slate-200 bg-stone-50/90 backdrop-blur">
+        <ThemeProvider>
+        <header className="sticky top-0 z-30 border-b border-slate-200 bg-stone-50/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
           <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-3">
             <Link href="/" className="flex items-center gap-2 font-bold text-teal-800">
               <span className="grid size-9 place-items-center rounded-xl bg-teal-700 text-sm text-white">
@@ -97,12 +106,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
 
-        <footer className="border-t border-slate-200 px-4 py-8 text-center text-xs text-slate-500">
+        <footer className="border-t border-slate-200 px-4 py-8 text-center text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
           <p>2iE Market — projet étudiant de l'Institut 2iE, Ouagadougou.</p>
           <p className="mt-1">Paiement à la réception disponible · Mobile Money en préparation.</p>
         </footer>
 
         <ServiceWorkerRegister />
+        </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );

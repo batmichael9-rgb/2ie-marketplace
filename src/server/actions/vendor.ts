@@ -44,19 +44,33 @@ export async function updateVendorProfileAction(formData: FormData) {
 
   const data = parsed.data;
 
-  await db.vendorProfile.update({
-    where: { id: vendor.id },
-    data: {
-      shopName: data.shopName,
-      description: data.description || null,
-      roomNumber: data.roomNumber || null,
-      momoNumber: data.momoNumber || null,
-      momoOperator: data.momoOperator ?? null,
-      campus: data.campus,
-    },
+  await db.$transaction(async (tx) => {
+    await tx.vendorProfile.update({
+      where: { id: vendor.id },
+      data: {
+        shopName: data.shopName,
+        description: data.description || null,
+        roomNumber: data.roomNumber || null,
+        momoNumber: data.momoNumber || null,
+        momoOperator: data.momoOperator || null,
+        campus: data.campus,
+      },
+    });
+
+    // Numéro Mobile Money de reversement : également disponible sur le compte
+    // (page Paramètres / Mon profil) pour rester une seule source cohérente.
+    await tx.user.update({
+      where: { id: vendor.userId },
+      data: {
+        mobileMoneyNumber: data.momoNumber || null,
+        mobileMoneyProvider: data.momoOperator || null,
+      },
+    });
   });
 
   revalidatePath("/espace-vendeur");
+  revalidatePath("/profil");
+  revalidatePath("/parametres");
   revalidatePath("/");
   redirect("/espace-vendeur?boutique=maj#boutique");
 }

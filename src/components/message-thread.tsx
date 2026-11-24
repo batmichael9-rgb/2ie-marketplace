@@ -102,7 +102,7 @@ export function MessageThread({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
+      <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3 dark:border-slate-800">
         <a
           href="/messages"
           className="btn-ghost !px-2 !py-1 md:hidden"
@@ -111,16 +111,18 @@ export function MessageThread({
           <ChevronLeft className="size-5" aria-hidden />
         </a>
         <div className="min-w-0">
-          <p className="truncate text-sm font-bold">{otherName}</p>
+          <p className="truncate text-sm font-bold dark:text-slate-100">{otherName}</p>
           {productName ? (
-            <p className="truncate text-xs text-slate-500">À propos de {productName}</p>
+            <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+              À propos de {productName}
+            </p>
           ) : null}
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50/60 px-4 py-4">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50/60 px-4 py-4 dark:bg-slate-950/40">
         {messages.length === 0 ? (
-          <p className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-500 shadow-sm">
+          <p className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-500 shadow-sm dark:bg-slate-800 dark:text-slate-300">
             Aucun message pour l&apos;instant. Présente-toi et pose ta question sur le produit :
             le vendeur reçoit une notification.
           </p>
@@ -134,13 +136,13 @@ export function MessageThread({
                 className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm shadow-sm ${
                   mine
                     ? "rounded-br-sm bg-teal-700 text-white"
-                    : "rounded-bl-sm border border-slate-200 bg-white text-slate-900"
+                    : "rounded-bl-sm border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                 }`}
               >
                 <p className="whitespace-pre-line break-words">{message.content}</p>
                 <p
                   className={`mt-1 text-right text-[10px] ${
-                    mine ? "text-teal-100" : "text-slate-400"
+                    mine ? "text-teal-100" : "text-slate-400 dark:text-slate-500"
                   }`}
                 >
                   {formatTime(message.createdAt)}
@@ -157,7 +159,7 @@ export function MessageThread({
       ) : null}
 
       <form
-        className="flex items-end gap-2 border-t border-slate-200 bg-white px-3 py-3"
+        className="flex items-end gap-2 border-t border-slate-200 bg-white px-3 py-3 dark:border-slate-800 dark:bg-slate-900"
         onSubmit={(event) => {
           event.preventDefault();
           void send();

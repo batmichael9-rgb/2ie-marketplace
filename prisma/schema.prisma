@@ -32,6 +32,9 @@ model User {
   fullName  String
   role      String   @default("CLIENT") // CLIENT | VENDOR | ADMIN
   campusRoom String?
+  // Numéro Mobile Money du client (et du vendeur) pour les paiements futurs.
+  mobileMoneyNumber   String?
+  mobileMoneyProvider String? // ORANGE_MONEY | MOOV_MONEY | WAVE
   createdAt DateTime @default(now())
 
   vendor  VendorProfile?
@@ -70,7 +73,7 @@ model VendorProfile {
   roomNumber  String? // champ facultatif du cahier des charges
   campus      String? // Site de Ouagadougou | Site de Kamboinsé
   momoNumber  String? // paiement direct au vendeur (MVP)
-  momoOperator String? // ORANGE_MONEY | MOOV_MONEY
+  momoOperator String? // ORANGE_MONEY | MOOV_MONEY | WAVE
   isActive    Boolean  @default(true)
   isVerified  Boolean  @default(false)
   ratingAvg   Float    @default(0)
@@ -272,7 +275,7 @@ model PaymentEvent {
 model Review {
   id          String   @id @default(cuid())
   productId   String
-  orderItemId String   @unique // garantit l'achat vérifié
+  orderItemId String?  @unique // renseigné pour un achat vérifié, null pour un avis libre
   buyerId     String
   rating      Int
   comment     String?
@@ -280,7 +283,7 @@ model Review {
   createdAt   DateTime @default(now())
 
   product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
-  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  orderItem OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
   buyer     User      @relation(fields: [buyerId], references: [id])
 
   @@unique([buyerId, productId])

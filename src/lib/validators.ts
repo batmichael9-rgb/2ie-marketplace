@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { VENDOR_EMAIL_DOMAIN } from "@/lib/domain";
+import { MOBILE_MONEY_PROVIDERS, VENDOR_EMAIL_DOMAIN } from "@/lib/domain";
+
+/** Opérateur Mobile Money : ORANGE_MONEY | MOOV_MONEY | WAVE. */
+const mobileMoneyProvider = z
+  .enum(MOBILE_MONEY_PROVIDERS, { error: "Choisis un opérateur Mobile Money." })
+  .optional()
+  .or(z.literal(""));
 
 const phone = z
   .string({ error: "Indique ton numéro de téléphone." })
@@ -99,7 +105,7 @@ export const vendorProfileSchema = z.object({
   description: z.string().trim().max(500).optional().or(z.literal("")),
   roomNumber: z.string().trim().max(30).optional().or(z.literal("")),
   momoNumber: phone.optional().or(z.literal("")),
-  momoOperator: z.enum(["ORANGE_MONEY", "MOOV_MONEY"]).optional(),
+  momoOperator: mobileMoneyProvider,
   campus: campusSchema,
 });
 
@@ -110,6 +116,14 @@ export const profileSchema = z.object({
   phone: phone.optional().or(z.literal("")),
   shopName: z.string().trim().max(60).optional().or(z.literal("")),
   campus: z.string().optional().or(z.literal("")),
+  mobileMoneyNumber: phone.optional().or(z.literal("")),
+  mobileMoneyProvider: mobileMoneyProvider,
+});
+
+/** Bloc Mobile Money seul (page Paramètres, Mon profil, Espace vendeur). */
+export const mobileMoneySchema = z.object({
+  mobileMoneyNumber: phone.optional().or(z.literal("")),
+  mobileMoneyProvider: mobileMoneyProvider,
 });
 
 export const productSchema = z.object({
@@ -160,6 +174,16 @@ export const reviewSchema = z.object({
   orderItemId: z.string().min(1),
   rating: z.coerce.number().int().min(1).max(5),
   comment: z.string().trim().max(1000).optional().or(z.literal("")),
+});
+
+/** Avis libre depuis la fiche produit : note 1 à 5 + commentaire facultatif. */
+export const productReviewSchema = z.object({
+  rating: z.coerce
+    .number({ error: "Choisis une note de 1 à 5 étoiles." })
+    .int()
+    .min(1, "Choisis une note de 1 à 5 étoiles.")
+    .max(5, "La note maximale est de 5 étoiles."),
+  comment: z.string().trim().max(1000, "Commentaire trop long (1000 caractères maximum).").optional().or(z.literal("")),
 });
 
 export const deleteProductSchema = z.object({

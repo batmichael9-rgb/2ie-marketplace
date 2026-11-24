@@ -89,7 +89,7 @@ export default async function MessagesPage({
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Mes messages</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           Discute directement avec les vendeurs du campus. Chaque message déclenche une
           notification Push si l&apos;application est installée.
         </p>
@@ -97,9 +97,9 @@ export default async function MessagesPage({
 
       {conversations.length === 0 ? (
         <div className="card p-10 text-center">
-          <MessageSquare className="mx-auto size-10 text-slate-300" aria-hidden />
+          <MessageSquare className="mx-auto size-10 text-slate-300 dark:text-slate-600" aria-hidden />
           <p className="mt-3 text-lg font-semibold">Aucune conversation</p>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
             Depuis une fiche produit, touche « Discuter avec le vendeur » pour démarrer un échange.
           </p>
           <Link href="/" className="btn-primary mt-4">
@@ -109,13 +109,13 @@ export default async function MessagesPage({
       ) : (
         <div className="grid gap-4 md:h-[calc(100dvh-15rem)] md:grid-cols-[320px_minmax(0,1fr)]">
           <section
-            className={`${active ? "hidden md:flex" : "flex"} min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}
+            className={`${active ? "hidden md:flex" : "flex"} min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900`}
             aria-label="Liste des conversations"
           >
-            <h2 className="border-b border-slate-200 px-4 py-3 text-sm font-bold text-slate-500">
+            <h2 className="border-b border-slate-200 px-4 py-3 text-sm font-bold text-slate-500 dark:border-slate-800 dark:text-slate-400">
               Conversations ({conversations.length})
             </h2>
-            <ul className="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto">
+            <ul className="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto dark:divide-slate-800">
               {conversations.map((conversation) => {
                 const otherName =
                   conversation.buyerId === user.id
@@ -133,7 +133,9 @@ export default async function MessagesPage({
                     <Link
                       href={`/messages?c=${conversation.id}`}
                       className={`flex gap-3 px-3 py-3 transition-colors ${
-                        isActive ? "bg-teal-50/70" : "hover:bg-slate-50"
+                        isActive
+                          ? "bg-teal-50/70 dark:bg-teal-500/15"
+                          : "hover:bg-slate-50 dark:hover:bg-slate-800/60"
                       }`}
                     >
                       <div className="relative shrink-0">
@@ -145,7 +147,7 @@ export default async function MessagesPage({
                             className="size-11 rounded-xl object-cover"
                           />
                         ) : (
-                          <span className="grid size-11 place-items-center rounded-xl bg-slate-100 text-sm font-bold text-slate-500">
+                          <span className="grid size-11 place-items-center rounded-xl bg-slate-100 text-sm font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                             {otherName.slice(0, 1).toUpperCase()}
                           </span>
                         )}
@@ -158,7 +160,7 @@ export default async function MessagesPage({
 
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline justify-between gap-2">
-                          <p className="truncate text-sm font-semibold">{otherName}</p>
+                          <p className="truncate text-sm font-semibold dark:text-slate-100">{otherName}</p>
                           {last ? (
                             <span className="shrink-0 text-[10px] text-slate-400">
                               {formatDate(last.createdAt)}
@@ -166,13 +168,15 @@ export default async function MessagesPage({
                           ) : null}
                         </div>
                         {conversation.product ? (
-                          <p className="truncate text-xs font-medium text-teal-800">
+                          <p className="truncate text-xs font-medium text-teal-800 dark:text-teal-300">
                             {conversation.product.name}
                           </p>
                         ) : null}
                         <p
                           className={`truncate text-xs ${
-                            unread > 0 ? "font-semibold text-slate-800" : "text-slate-500"
+                            unread > 0
+                              ? "font-semibold text-slate-800 dark:text-slate-100"
+                              : "text-slate-500 dark:text-slate-400"
                           }`}
                         >
                           {last
@@ -188,7 +192,7 @@ export default async function MessagesPage({
           </section>
 
           <section
-            className={`${active ? "flex" : "hidden md:flex"} min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}
+            className={`${active ? "flex" : "hidden md:flex"} min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900`}
             aria-label="Fil de discussion"
           >
             {active ? (
@@ -203,9 +207,9 @@ export default async function MessagesPage({
             ) : (
               <div className="grid flex-1 place-items-center p-10 text-center">
                 <div>
-                  <MessageSquare className="mx-auto size-10 text-slate-300" aria-hidden />
+                  <MessageSquare className="mx-auto size-10 text-slate-300 dark:text-slate-600" aria-hidden />
                   <p className="mt-3 font-semibold">Choisis une conversation</p>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                     Sélectionne un fil à gauche pour afficher les messages.
                   </p>
                 </div>

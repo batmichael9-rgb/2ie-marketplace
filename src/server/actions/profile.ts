@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { CAMPUSES, type Campus } from "@/lib/domain";
-import { profileSchema } from "@/lib/validators";
+import { mobileMoneySchema, profileSchema } from "@/lib/validators";
 
 function profileErrorUrl(message: string): string {
   return `/profil?erreur=${encodeURIComponent(message)}`;
@@ -27,6 +27,8 @@ export async function updateProfileAction(formData: FormData) {
     phone: formData.get("phone"),
     shopName: formData.get("shopName"),
     campus: formData.get("campus"),
+    mobileMoneyNumber: formData.get("mobileMoneyNumber"),
+    mobileMoneyProvider: formData.get("mobileMoneyProvider") || undefined,
   });
 
   if (!parsed.success) {
@@ -54,13 +56,22 @@ export async function updateProfileAction(formData: FormData) {
           fullName: data.fullName,
           email: data.email,
           phone: data.phone || null,
+          mobileMoneyNumber: data.mobileMoneyNumber || null,
+          mobileMoneyProvider: data.mobileMoneyProvider || null,
         },
       });
 
       if (user.vendor) {
         await tx.vendorProfile.update({
           where: { id: user.vendor.id },
-          data: { shopName, campus },
+          data: {
+            shopName,
+            campus,
+            // Le numéro de reversement du vendeur reste stocké sur la boutique
+            // (utilisé sur la fiche produit) : on le garde synchronisé.
+            momoNumber: data.mobileMoneyNumber || null,
+            momoOperator: data.mobileMoneyProvider || null,
+          },
         });
       }
     });
@@ -74,7 +85,52 @@ export async function updateProfileAction(formData: FormData) {
   }
 
   revalidatePath("/profil");
+  revalidatePath("/parametres");
   revalidatePath("/");
   revalidatePath("/espace-vendeur");
   redirect("/profil?ok=1");
+}
+
+/**
+ * Mise à jour du seul bloc Mobile Money (page Paramètres).
+ *
+ * Les vendeurs voient leur numéro de reversement synchronisé sur la boutique.
+ */
+export async function updateMobileMoneyAction(formData: FormData) {
+  const user = await requireUser("/parametres");
+
+  const parsed = mobileMoneySchema.safeParse({
+    mobileMoneyNumber: formData.get("mobileMoneyNumber"),
+    mobileMoneyProvider: formData.get("mobileMoneyProvider") || undefined,
+  });
+
+  if (!parsed.success) {
+    redirect(
+      `/parametres?erreur=${encodeURIComponent(
+        parsed.error.issues[0]?.message ?? "Numéro Mobile Money invalide.",
+      )}#mobile-money`,
+    );
+  }
+
+  const number = parsed.data.mobileMoneyNumber || null;
+  const provider = parsed.data.mobileMoneyProvider || null;
+
+  await db.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: user.id },
+      data: { mobileMoneyNumber: number, mobileMoneyProvider: provider },
+    });
+
+    if (user.vendor) {
+      await tx.vendorProfile.update({
+        where: { id: user.vendor.id },
+        data: { momoNumber: number, momoOperator: provider },
+      });
+    }
+  });
+
+  revalidatePath("/profil");
+  revalidatePath("/parametres");
+  revalidatePath("/espace-vendeur");
+  redirect("/parametres?ok=momo#mobile-money");
 }
