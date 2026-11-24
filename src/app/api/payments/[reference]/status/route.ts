@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getProvider } from "@/lib/payments";
 import { applyPaymentStatus } from "@/lib/payments/apply";
@@ -14,15 +15,37 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ reference: string }> },
 ) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json(
+      { error: "unauthorized" },
+      { status: 401, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
   const { reference } = await params;
 
   const order = await db.order.findUnique({
     where: { reference },
-    include: { payments: { orderBy: { createdAt: "desc" }, take: 1 } },
+    include: {
+      payments: { orderBy: { createdAt: "desc" }, take: 1 },
+      vendor: { select: { id: true } },
+    },
   });
 
   if (!order) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
+  // IDOR : seul l'acheteur, le vendeur de la commande ou un admin peut
+  // consulter son statut de paiement, même en connaissant la référence.
+  const isBuyer = order.buyerId === user.id;
+  const isVendor = user.vendor?.id === order.vendor.id;
+  if (!isBuyer && !isVendor && user.role !== "ADMIN") {
+    return NextResponse.json(
+      { error: "forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   const payment = order.payments[0];

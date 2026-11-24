@@ -170,6 +170,15 @@ export const checkoutSchema = z.object({
     .max(80, "Clé d'idempotence invalide : recharge la page."),
 });
 
+export const messageSchema = z.object({
+  conversationId: z.string().trim().min(1, "Conversation introuvable."),
+  content: z
+    .string({ error: "Écris un message avant d'envoyer." })
+    .trim()
+    .min(1, "Écris un message avant d'envoyer.")
+    .max(2000, "Message trop long (2000 caractères maximum)."),
+});
+
 export const reviewSchema = z.object({
   orderItemId: z.string().min(1),
   rating: z.coerce.number().int().min(1).max(5),

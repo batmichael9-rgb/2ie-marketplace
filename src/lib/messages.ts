@@ -29,8 +29,15 @@ export async function markConversationRead(
   conversationId: string,
   readerId: string,
 ): Promise<void> {
+  // Le filtre sur le participant empêche de marquer comme lus les messages
+  // d'une conversation dont on n'est pas membre (IDOR en écriture).
   await db.message.updateMany({
-    where: { conversationId, isRead: false, senderId: { not: readerId } },
+    where: {
+      conversationId,
+      isRead: false,
+      senderId: { not: readerId },
+      conversation: { OR: [{ buyerId: readerId }, { sellerId: readerId }] },
+    },
     data: { isRead: true },
   });
 }

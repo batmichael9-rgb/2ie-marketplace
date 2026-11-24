@@ -6,8 +6,8 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { listConversationMessages, markConversationRead, type MessageView } from "@/lib/messages";
 import { notifyUserSafely } from "@/lib/push";
-
-const MAX_LENGTH = 2000;
+import { rateLimit } from "@/lib/rate-limit";
+import { messageSchema } from "@/lib/validators";
 
 /**
  * Ouvre (ou crée) la conversation entre le client connecté et le vendeur d'un
@@ -117,12 +117,19 @@ export async function sendMessageAction(
   rawContent: string,
 ): Promise<SendMessageResult> {
   const user = await requireUser("/messages");
-  const content = rawContent.trim().slice(0, MAX_LENGTH);
 
-  if (!content) return { ok: false, error: "Écris un message avant d'envoyer." };
+  const parsed = messageSchema.safeParse({ conversationId, content: rawContent });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Message invalide.",
+    };
+  }
+
+  const content = parsed.data.content;
 
   const conversation = await db.conversation.findFirst({
-    where: { id: conversationId, OR: [{ buyerId: user.id }, { sellerId: user.id }] },
+    where: { id: parsed.data.conversationId, OR: [{ buyerId: user.id }, { sellerId: user.id }] },
     select: {
       id: true,
       buyerId: true,
@@ -132,6 +139,19 @@ export async function sendMessageAction(
   });
 
   if (!conversation) return { ok: false, error: "Conversation introuvable." };
+
+  // Anti-spam : 20 messages par minute et par compte. Le fil est actualisé
+  // toutes les 5 s côté client, cette limite reste donc largement suffisante
+  // pour une conversation normale.
+  const limit = rateLimit(`message:${user.id}`, 20, 60_000);
+  if (!limit.ok) {
+    return {
+      ok: false,
+      error: `Tu envoies des messages trop vite. Patiente ${limit.retryAfterSeconds} seconde${
+        limit.retryAfterSeconds > 1 ? "s" : ""
+      } avant de réessayer.`,
+    };
+  }
 
   await db.message.create({
     data: { conversationId: conversation.id, senderId: user.id, content },

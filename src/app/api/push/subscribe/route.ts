@@ -37,10 +37,25 @@ export async function POST(request: Request) {
 
   const { endpoint, keys } = parsed.data;
 
+  // IDOR : un endpoint déjà rattaché à un autre compte n'est jamais réassigné,
+  // même si quelqu'un connaît son URL. L'ancien propriétaire doit d'abord le
+  // supprimer depuis son appareil.
+  const existing = await db.pushSubscription.findUnique({
+    where: { endpoint },
+    select: { userId: true },
+  });
+
+  if (existing && existing.userId !== user.id) {
+    return NextResponse.json(
+      { error: "endpoint_already_registered" },
+      { status: 409, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
   await db.pushSubscription.upsert({
     where: { endpoint },
     create: { userId: user.id, endpoint, p256dh: keys.p256dh, auth: keys.auth },
-    update: { userId: user.id, p256dh: keys.p256dh, auth: keys.auth },
+    update: { p256dh: keys.p256dh, auth: keys.auth },
   });
 
   return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });

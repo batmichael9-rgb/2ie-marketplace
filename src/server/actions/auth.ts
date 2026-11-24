@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { CAMPUSES, slugify, type Campus } from "@/lib/domain";
 import { sendOtpEmail } from "@/lib/email";
 import { OtpError, consumeOtp, issueOtp } from "@/lib/otp";
+import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import {
   emailSchema,
   loginSchema,
@@ -58,6 +59,30 @@ function emailErrorMessage(error: unknown): string {
   return "Impossible d'envoyer l'email de vérification pour le moment. Réessaie dans quelques minutes.";
 }
 
+/**
+ * Anti-spam de l'envoi de codes : au plus 3 codes par adresse et 20 par IP sur
+ * 10 minutes (le cooldown de 60 s par adresse reste appliqué par `issueOtp`).
+ * Renvoie un message utilisateur si la limite est atteinte, sinon `null`.
+ */
+async function otpRateLimitError(scope: string, email: string): Promise<string | null> {
+  const byEmail = rateLimit(`otp:${scope}:email:${email}`, 3, 10 * 60_000);
+  if (!byEmail.ok) {
+    return `Trop de demandes de code pour cette adresse. Patiente ${Math.ceil(
+      byEmail.retryAfterSeconds / 60,
+    )} minute(s) avant de réessayer.`;
+  }
+
+  const ip = await getClientIp();
+  const byIp = rateLimit(`otp:${scope}:ip:${ip}`, 20, 10 * 60_000);
+  if (!byIp.ok) {
+    return `Trop de demandes de code depuis cette connexion. Patiente ${Math.ceil(
+      byIp.retryAfterSeconds / 60,
+    )} minute(s) avant de réessayer.`;
+  }
+
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Inscription en deux étapes : email -> code OTP -> mot de passe + profil
 // ---------------------------------------------------------------------------
@@ -97,6 +122,11 @@ export async function requestSignupCodeAction(formData: FormData) {
           "Un compte existe déjà avec cet email. Connecte-toi ou utilise « Mot de passe oublié ? ».",
       }),
     );
+  }
+
+  const limited = await otpRateLimitError("signup", email);
+  if (limited) {
+    redirect(signupUrl({ isVendor, next, erreur: limited }));
   }
 
   const code = await issueOtp(email, "SIGNUP").catch((error) => {
@@ -342,6 +372,12 @@ export async function requestPasswordResetAction(formData: FormData) {
   }
 
   const email = parsed.data;
+
+  const limited = await otpRateLimitError("reset", email);
+  if (limited) {
+    redirect(resetUrl({ erreur: limited }));
+  }
+
   const user = await db.user.findUnique({
     where: { email },
     select: { id: true },
