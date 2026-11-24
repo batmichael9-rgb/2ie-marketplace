@@ -75,6 +75,10 @@ model VendorProfile {
   campus      String? // Site de Ouagadougou | Site de Kamboinsé
   momoNumber  String? // paiement direct au vendeur (MVP)
   momoOperator String? // ORANGE_MONEY | MOOV_MONEY | WAVE
+  // Autorise (ou non) le paiement à la remise sur le campus en plus du
+  // paiement en ligne. Activé par défaut pour ne pas bloquer les vendeurs
+  // existants ; le vendeur peut le désactiver depuis son espace.
+  acceptsCashPayment Boolean @default(true)
   isActive    Boolean  @default(true)
   isVerified  Boolean  @default(false)
   ratingAvg   Float    @default(0)
@@ -188,6 +192,14 @@ model Order {
   subtotalXof   Int
   feesXof       Int      @default(0)
   totalXof      Int
+  // Montants du paiement en ligne : le prix payé par l'acheteur est exactement
+  // le prix du catalogue (grossAmount). La commission plateforme de 5 % est
+  // retenue sur ce montant, le solde (95 %) revient au vendeur.
+  grossAmount    Int    @default(0)
+  platformFee    Int    @default(0)
+  vendorNetAmount Int   @default(0)
+  // PENDING | READY_FOR_PAYOUT | PAID_OUT (paiements en ligne uniquement).
+  payoutStatus  String   @default("PENDING")
   currency      String   @default("XOF")
   buyerName     String
   buyerPhone    String

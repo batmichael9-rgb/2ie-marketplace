@@ -214,6 +214,21 @@ export async function verifySignupCodeAction(formData: FormData) {
     );
   }
 
+  // La commission plateforme de 5 % doit être acceptée explicitement avant
+  // l'ouverture de la boutique.
+  if (isVendor && formData.get("vendorCommissionAccepted") !== "on") {
+    redirect(
+      signupUrl({
+        isVendor,
+        etape: "code",
+        email: data.email,
+        next,
+        erreur:
+          "Coche la case d'acceptation de la commission plateforme de 5 % pour ouvrir ta boutique.",
+      }),
+    );
+  }
+
   const existing = await db.user.findUnique({
     where: { email: data.email },
     select: { id: true },

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { NetVendorPreview } from "@/components/net-vendor-preview";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { CAMPUSES } from "@/lib/domain";
@@ -105,24 +106,7 @@ export default async function EditProductPage({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="label" htmlFor="priceXof">
-              Prix (FCFA)
-            </label>
-            <input
-              id="priceXof"
-              name="priceXof"
-              className="input"
-              type="number"
-              inputMode="numeric"
-              min={25}
-              max={10_000_000}
-              step={25}
-              defaultValue={product.priceXof}
-              required
-            />
-            <p className="mt-1 text-xs text-slate-500">Entier, sans centimes.</p>
-          </div>
+          <NetVendorPreview defaultValue={product.priceXof} />
 
           <div>
             <label className="label" htmlFor="categoryId">

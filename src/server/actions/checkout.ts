@@ -6,7 +6,7 @@ import { after } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { appUrl, generateOrderReference } from "@/lib/domain";
-import { computeFees, formatXof } from "@/lib/money";
+import { computeFeeBreakdown, formatXof } from "@/lib/money";
 import { applyPaymentStatus } from "@/lib/payments/apply";
 import { getProvider } from "@/lib/payments";
 import { recordPreferenceSignal } from "@/lib/preferences";
@@ -122,9 +122,14 @@ export async function createOrderAction(formData: FormData) {
   }
 
   const quantity = data.quantity;
+  // Le prix du catalogue est exactement ce que paie l'acheteur. La commission
+  // de 5 % n'est retenue que sur les paiements en ligne, sur la part vendeur.
   const subtotalXof = product.priceXof * quantity;
-  const feesXof = computeFees(subtotalXof);
-  const totalXof = subtotalXof + feesXof;
+  const isOnline = provider.id !== "CASH";
+  const { platformFee, vendorNetAmount } = computeFeeBreakdown(subtotalXof);
+  const feesXof = 0;
+  const totalXof = subtotalXof;
+  const payoutStatus = isOnline ? "PENDING" : "PAID_OUT";
   const reference = generateOrderReference();
   const merchantRef = `${reference}-1`;
 
@@ -154,6 +159,10 @@ export async function createOrderAction(formData: FormData) {
           subtotalXof,
           feesXof,
           totalXof,
+          grossAmount: totalXof,
+          platformFee: isOnline ? platformFee : 0,
+          vendorNetAmount: isOnline ? vendorNetAmount : totalXof,
+          payoutStatus,
           buyerName: data.buyerName,
           buyerPhone: data.buyerPhone,
           buyerRoom: data.buyerRoom || null,

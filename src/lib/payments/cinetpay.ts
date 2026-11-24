@@ -32,6 +32,32 @@ function config() {
   };
 }
 
+/** Secret utilisé pour authentifier les notifications entrantes (en-tête x-token). */
+export function cinetpaySecretKey(): string {
+  return process.env.CINETPAY_SECRET_KEY ?? "";
+}
+
+/**
+ * Lit un corps de webhook CinetPay : JSON en v2, formulaire encodé en v1.
+ * Renvoie null si le corps n'est pas exploitable.
+ */
+export function parseCinetpayWebhookBody(rawBody: string): Record<string, unknown> | null {
+  try {
+    const json = JSON.parse(rawBody);
+    if (json && typeof json === "object") return json as Record<string, unknown>;
+  } catch {
+    // Pas du JSON : on tente le formulaire encodé (v1).
+  }
+
+  try {
+    const params = new URLSearchParams(rawBody);
+    const entries = Object.fromEntries(params.entries());
+    return Object.keys(entries).length > 0 ? entries : null;
+  } catch {
+    return null;
+  }
+}
+
 const STATUS_MAP: Record<string, NormalizedPaymentStatus> = {
   ACCEPTED: "SUCCEEDED",
   SUCCESS: "SUCCEEDED",
@@ -73,9 +99,9 @@ async function postJson(path: string, body: Record<string, unknown>) {
 
 export const cinetpayProvider: PaymentProvider = {
   id: "CINETPAY",
-  label: "Orange Money / Moov Money",
+  label: "Paiement en ligne (Orange Money, Moov Money, Wave, Carte)",
   description:
-    "Paiement Mobile Money sécurisé. Tu recevras une demande de confirmation sur ton téléphone.",
+    "Paiement sécurisé via CinetPay : Orange Money, Moov Money, Wave ou carte bancaire. Tu recevras une demande de confirmation sur ton téléphone.",
   supportsRedirect: true,
 
   isEnabled() {
@@ -98,7 +124,8 @@ export const cinetpayProvider: PaymentProvider = {
         description: input.description.slice(0, 100),
         notify_url: input.notifyUrl,
         return_url: input.returnUrl,
-        channels: "MOBILE_MONEY",
+        // Aucun filtre de canal : CinetPay propose Orange Money, Moov Money,
+        // Wave et carte bancaire selon ce qui est activé sur le compte marchand.
         lang: "fr",
         customer_name: input.buyer.name.slice(0, 60),
         customer_phone_number: input.buyer.phone,

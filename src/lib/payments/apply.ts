@@ -55,7 +55,14 @@ export async function applyPaymentStatus(
 
       await tx.order.update({
         where: { id: payment.orderId },
-        data: { paymentStatus: "PAID", status: "PAID", confirmedAt: new Date() },
+        data: {
+          paymentStatus: "PAID",
+          status: "PAID",
+          confirmedAt: new Date(),
+          // Une vente en ligne est encaissée par la plateforme : la part nette
+          // du vendeur devient due et attend son reversement Mobile Money.
+          ...(payment.provider !== "CASH" ? { payoutStatus: "READY_FOR_PAYOUT" } : {}),
+        },
       });
       return "PAID";
     }

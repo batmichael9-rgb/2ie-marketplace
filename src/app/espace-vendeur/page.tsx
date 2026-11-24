@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
+import { PlatformFeeInfo } from "@/components/platform-fee-info";
 import { PushNotificationsButton } from "@/components/push-notifications-button";
 import { requireVendor } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -9,6 +10,7 @@ import {
   ORDER_STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
   formatDate,
+  mobileMoneyLabel,
   type OrderStatus,
 } from "@/lib/domain";
 import { formatXof } from "@/lib/money";
@@ -75,9 +77,31 @@ export default async function VendorDashboardPage({
     }),
   ]);
 
+  // Ventes en ligne effectivement payées : seules celles-ci portent une
+  // commission de 5 % et un reversement à effectuer.
+  const onlinePaidOrders = orders.filter(
+    (order) => order.paymentStatus === "PAID" && order.payments[0]?.provider !== "CASH",
+  );
+
+  const payoutTotals = onlinePaidOrders.reduce(
+    (totals, order) => {
+      const net = order.vendorNetAmount || order.totalXof;
+      totals.net += net;
+      totals.commission += order.platformFee;
+      totals.gross += order.grossAmount || order.totalXof;
+      if (order.payoutStatus === "PAID_OUT") totals.paidOut += net;
+      else totals.pending += net;
+      return totals;
+    },
+    { gross: 0, commission: 0, net: 0, pending: 0, paidOut: 0 },
+  );
+
   const revenue = orders
     .filter((order) => order.paymentStatus === "PAID")
-    .reduce((sum, order) => sum + order.totalXof, 0);
+    .reduce(
+      (sum, order) => sum + (order.vendorNetAmount || order.totalXof),
+      0,
+    );
 
   const openOrders = orders.filter((order) => OPEN_STATUSES.includes(order.status));
 
@@ -139,7 +163,7 @@ export default async function VendorDashboardPage({
 
         <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-2xl bg-white/10 px-3 py-2">
-            <dt className="text-xs text-teal-100">Encaissé</dt>
+            <dt className="text-xs text-teal-100">Net encaissé (95 %)</dt>
             <dd className="text-lg font-bold">{formatXof(revenue)}</dd>
           </div>
           <div className="rounded-2xl bg-white/10 px-3 py-2">
@@ -158,6 +182,104 @@ export default async function VendorDashboardPage({
       </header>
 
       <PushNotificationsButton />
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Finances & reversements                                            */}
+      {/* ------------------------------------------------------------------ */}
+      <section id="finances" className="space-y-4">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight">Finances</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Commission plateforme de 5 % retenue sur les ventes payées en ligne.
+          </p>
+        </div>
+
+        <dl className="grid gap-3 sm:grid-cols-3">
+          <div className="card p-4">
+            <dt className="text-xs font-medium text-slate-500">Total encaissé (Net 95 %)</dt>
+            <dd className="mt-1 text-xl font-bold text-teal-800">
+              {formatXof(payoutTotals.net)}
+            </dd>
+            <p className="mt-1 text-xs text-slate-500">
+              Commission 5 % retenue : {formatXof(payoutTotals.commission)}
+            </p>
+          </div>
+          <div className="card p-4">
+            <dt className="text-xs font-medium text-slate-500">En attente de reversement</dt>
+            <dd className="mt-1 text-xl font-bold text-amber-700">
+              {formatXof(payoutTotals.pending)}
+            </dd>
+            <p className="mt-1 text-xs text-slate-500">
+              Payé en ligne, pas encore reversé sur ton Mobile Money.
+            </p>
+          </div>
+          <div className="card p-4">
+            <dt className="text-xs font-medium text-slate-500">Déjà reversé</dt>
+            <dd className="mt-1 text-xl font-bold text-slate-800">
+              {formatXof(payoutTotals.paidOut)}
+            </dd>
+            <p className="mt-1 text-xs text-slate-500">
+              {vendor.momoNumber
+                ? `Numéro Mobile Money : ${vendor.momoNumber}${
+                    vendor.momoOperator ? ` (${mobileMoneyLabel(vendor.momoOperator)})` : ""
+                  }`
+                : "Aucun numéro Mobile Money enregistré : ajoute-le ci-dessous pour recevoir tes reversements."}
+            </p>
+          </div>
+        </dl>
+
+        {onlinePaidOrders.length > 0 ? (
+          <div className="card overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 text-xs text-slate-500">
+                <tr>
+                  <th className="px-4 py-2.5 font-semibold">Commande</th>
+                  <th className="px-4 py-2.5 font-semibold">Prix payé</th>
+                  <th className="px-4 py-2.5 font-semibold">Commission 5 %</th>
+                  <th className="px-4 py-2.5 font-semibold">Net vendeur</th>
+                  <th className="px-4 py-2.5 font-semibold">Reversement</th>
+                </tr>
+              </thead>
+              <tbody>
+                {onlinePaidOrders.map((order) => (
+                  <tr key={order.id} className="border-b border-slate-100 last:border-0">
+                    <td className="px-4 py-2.5 font-mono text-xs font-semibold text-teal-800">
+                      {order.reference}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {formatXof(order.grossAmount || order.totalXof)}
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-600">{formatXof(order.platformFee)}</td>
+                    <td className="px-4 py-2.5 font-semibold">
+                      {formatXof(order.vendorNetAmount || order.totalXof)}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span
+                        className={
+                          order.payoutStatus === "PAID_OUT"
+                            ? "badge bg-teal-50 text-teal-800"
+                            : "badge bg-amber-50 text-amber-800"
+                        }
+                      >
+                        {order.payoutStatus === "PAID_OUT"
+                          ? "Reversé"
+                          : "En attente de reversement"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="card p-4 text-sm text-slate-600">
+            Aucune vente en ligne payée pour le moment. Les commandes payées à la remise ne
+            supportent pas de commission.
+          </p>
+        )}
+
+        <PlatformFeeInfo />
+      </section>
 
       {notices.length > 0 ? (
         <div className="space-y-2">
@@ -305,6 +427,24 @@ export default async function VendorDashboardPage({
                 <option value="WAVE">Wave</option>
               </select>
             </div>
+
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                name="acceptsCashPayment"
+                defaultChecked={vendor.acceptsCashPayment}
+                className="mt-1 size-4 accent-teal-700"
+              />
+              <span>
+                <span className="block text-sm font-semibold">
+                  Accepter le paiement à la remise sur le campus
+                </span>
+                <span className="block text-xs text-slate-600">
+                  Les clients peuvent payer en espèces ou par transfert direct au moment du
+                  retrait. Sans commission plateforme.
+                </span>
+              </span>
+            </label>
           </fieldset>
 
           <button type="submit" className="btn-primary">

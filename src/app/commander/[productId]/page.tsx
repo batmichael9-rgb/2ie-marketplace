@@ -67,7 +67,11 @@ export default async function CheckoutPage({
   if (outOfStock) redirect(`/p/${product.slug}`);
 
   const user = await getCurrentUser();
-  const providers = availableProviders();
+  // Paiement à la remise uniquement si le vendeur l'autorise ; le paiement en
+  // ligne CinetPay reste proposé dès que le compte marchand est configuré.
+  const providers = availableProviders().filter(
+    (provider) => provider.id !== "CASH" || product.vendor.acceptsCashPayment,
+  );
 
   const maxQuantity =
     product.stockMode === "TRACKED" ? Math.max(1, Math.min(product.stockQty, 20)) : 20;

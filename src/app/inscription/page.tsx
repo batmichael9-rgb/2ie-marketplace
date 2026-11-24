@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { PlatformFeeInfo } from "@/components/platform-fee-info";
 import { getCurrentUser } from "@/lib/auth";
 import {
   requestSignupCodeAction,
@@ -236,6 +237,22 @@ export default async function RegisterPage({
                       Ton campus est affiché aux clients sur tes produits.
                     </p>
                   </div>
+
+                  <PlatformFeeInfo />
+
+                  <label className="flex items-start gap-3 rounded-xl border border-teal-200 bg-white p-3 text-sm">
+                    <input
+                      type="checkbox"
+                      name="vendorCommissionAccepted"
+                      value="on"
+                      className="mt-1 size-4 accent-teal-700"
+                      required
+                    />
+                    <span>
+                      J&apos;accepte la commission plateforme de 5 % sur chaque vente payée en
+                       ligne et le reversement des 95 % restants sur mon numéro Mobile Money.
+                    </span>
+                  </label>
                 </>
               ) : null}
 
@@ -271,9 +288,12 @@ export default async function RegisterPage({
         ) : (
           <>
             {isVendor ? (
-              <div className="mt-6 rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-900">
-                <strong>Format d&apos;email requis :</strong> prenom.nom@2ie-edu.org
-              </div>
+              <>
+                <div className="mt-6 rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-900">
+                  <strong>Format d&apos;email requis :</strong> prenom.nom@2ie-edu.org
+                </div>
+                <PlatformFeeInfo className="mt-4" />
+              </>
             ) : null}
 
             <form action={requestSignupCodeAction} className="mt-6 space-y-5">

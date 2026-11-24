@@ -54,6 +54,7 @@ export async function updateVendorProfileAction(formData: FormData) {
         momoNumber: data.momoNumber || null,
         momoOperator: data.momoOperator || null,
         campus: data.campus,
+        acceptsCashPayment: formData.get("acceptsCashPayment") === "on",
       },
     });
 
