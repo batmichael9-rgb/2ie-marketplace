@@ -294,60 +294,46 @@ export function CatalogBrowser({
             <ChevronRight className="size-4" aria-hidden />
           </button>
 
-          <section className="card p-4">
-            <div className="flex items-baseline justify-between gap-2">
-              <h2 className="text-base font-bold dark:text-slate-100">Catégories pour vous</h2>
-              {activeCategory ? (
-                <button
-                  type="button"
-                  onClick={() => setCategory(null)}
-                  className="text-xs font-semibold text-teal-700 hover:underline"
-                >
-                  Tout afficher
-                </button>
-              ) : null}
-            </div>
+          <nav
+            aria-label="Filtrer par catégorie"
+            className="flex overflow-x-auto no-scrollbar gap-2 py-2"
+          >
+            <button
+              type="button"
+              onClick={() => setCategory(null)}
+              aria-pressed={category === null}
+              className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                category === null
+                  ? "bg-teal-700 text-white shadow-sm"
+                  : "border border-slate-200 bg-white text-slate-600 hover:border-teal-300 hover:text-teal-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-teal-500/40 dark:hover:text-teal-300"
+              }`}
+            >
+              <LayoutGrid className="size-4" aria-hidden />
+              Tout
+            </button>
 
-            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 xl:grid-cols-6">
-              {CATEGORIES.map((item) => {
-                const Icon = item.icon;
-                const active = category === item.slug;
-                return (
-                  <button
-                    key={item.slug}
-                    type="button"
-                    onClick={() => selectCategory(item.slug)}
-                    aria-pressed={active}
-                    title={item.name}
-                    className={`group flex flex-col items-center gap-1.5 rounded-2xl px-1 py-2 text-center transition-colors ${
-                      active
-                        ? "bg-teal-50 dark:bg-teal-500/15"
-                        : "hover:bg-slate-50 dark:hover:bg-slate-800"
-                    }`}
-                  >
-                    <span
-                      className={`grid size-12 place-items-center rounded-full border transition-colors ${
-                        active
-                          ? "border-teal-600 bg-teal-700 text-white"
-                          : "border-slate-200 bg-stone-50 text-teal-800 group-hover:border-teal-300 dark:border-slate-700 dark:bg-slate-800 dark:text-teal-300"
-                      }`}
-                    >
-                      <Icon className="size-5" aria-hidden />
-                    </span>
-                    <span
-                      className={`line-clamp-2 text-[11px] font-medium leading-tight ${
-                        active
-                          ? "text-teal-900 dark:text-teal-200"
-                          : "text-slate-600 dark:text-slate-400"
-                      }`}
-                    >
-                      {item.name}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+            {CATEGORIES.map((item) => {
+              const Icon = item.icon;
+              const active = category === item.slug;
+              return (
+                <button
+                  key={item.slug}
+                  type="button"
+                  onClick={() => setCategory(item.slug)}
+                  aria-pressed={active}
+                  title={item.name}
+                  className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                    active
+                      ? "bg-teal-700 text-white shadow-sm"
+                      : "border border-slate-200 bg-white text-slate-600 hover:border-teal-300 hover:text-teal-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-teal-500/40 dark:hover:text-teal-300"
+                  }`}
+                >
+                  <Icon className="size-4" aria-hidden />
+                  {item.name}
+                </button>
+              );
+            })}
+          </nav>
 
           {!aiMode && recommended.length > 0 ? (
             <section aria-labelledby="recommended-heading">
