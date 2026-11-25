@@ -7,7 +7,7 @@
  * ni la page de suivi ne changent.
  */
 
-export type ProviderId = "CASH" | "CINETPAY" | "LIGDICASH" | "FEDAPAY";
+export type ProviderId = "CASH" | "MONEYFUSION";
 
 export type NormalizedPaymentStatus =
   | "PENDING"
@@ -24,6 +24,10 @@ export interface CreateIntentInput {
   amountXof: number;
   description: string;
   orderReference: string;
+  /** Identifiant interne de la commande (transmis au PSP pour le suivi). */
+  orderId: string;
+  /** Identifiant de l'acheteur (transmis au PSP pour le suivi). */
+  userId: string;
   buyer: {
     name: string;
     phone: string;
@@ -56,7 +60,7 @@ export interface VerifyPaymentResult {
 }
 
 export interface ParsedWebhook {
-  /** Référence marchande permettant de retrouver le paiement local. */
+  /** Référence marchande ou token permettant de retrouver le paiement local. */
   merchantRef: string;
   /** Identifiant unique de l'événement côté PSP (anti-rejeu). */
   providerEventId: string;

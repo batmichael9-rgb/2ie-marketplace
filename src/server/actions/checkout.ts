@@ -36,6 +36,7 @@ export async function createOrderAction(formData: FormData) {
     productId,
     quantity: formData.get("quantity"),
     provider: formData.get("provider"),
+    operator: formData.get("operator") || undefined,
     buyerName: formData.get("buyerName"),
     buyerPhone: formData.get("buyerPhone"),
     buyerRoom: formData.get("buyerRoom"),
@@ -51,6 +52,7 @@ export async function createOrderAction(formData: FormData) {
     const visibleFields = new Set([
       "quantity",
       "provider",
+      "operator",
       "buyerName",
       "buyerPhone",
       "buyerRoom",
@@ -85,7 +87,9 @@ export async function createOrderAction(formData: FormData) {
 
   const data = parsed.data;
 
-  const provider = getProvider(data.provider);
+  // Le paiement en ligne est le seul mode accepté, quel que soit le champ
+  // « provider » envoyé par le navigateur.
+  const provider = getProvider("MONEYFUSION");
   if (!provider || !provider.isEnabled()) {
     redirect(`/commander/${productId}?erreur=${encodeURIComponent("Mode de paiement indisponible.")}`);
   }
@@ -138,6 +142,7 @@ export async function createOrderAction(formData: FormData) {
     : null;
 
   let merchantReference = merchantRef;
+  let createdOrderId: string | null = null;
 
   try {
     // --- 2. Transaction courte ---------------------------------------------
@@ -198,10 +203,8 @@ export async function createOrderAction(formData: FormData) {
         data: {
           orderId: order.id,
           provider: provider.id,
-          operator:
-            provider.id === "CINETPAY"
-              ? null
-              : product.vendor.momoOperator ?? null,
+          // Opérateur choisi par l'acheteur (Orange Money, Moov, Wave, carte).
+          operator: data.operator ?? "ORANGE_MONEY",
           idempotencyKey: data.idempotencyKey,
           merchantRef,
           amountXof: totalXof,
@@ -217,6 +220,7 @@ export async function createOrderAction(formData: FormData) {
       }
 
       merchantReference = merchantRef;
+      createdOrderId = order.id;
     });
   } catch (error) {
     if (error instanceof StockError) {
@@ -266,7 +270,7 @@ export async function createOrderAction(formData: FormData) {
   });
 
   const payment = await db.payment.findUnique({ where: { merchantRef: merchantReference } });
-  if (!payment) redirect(`/commande/${reference}`);
+  if (!payment || !createdOrderId) redirect(`/commande/${reference}`);
 
   // --- 3. Appel du PSP hors transaction ------------------------------------
   let intent;
@@ -277,16 +281,15 @@ export async function createOrderAction(formData: FormData) {
       amountXof: totalXof,
       description: `${product.name} × ${quantity}`.slice(0, 100),
       orderReference: reference,
+      orderId: createdOrderId,
+      userId: user.id,
       buyer: {
         name: data.buyerName,
         phone: data.buyerPhone,
         email: user.email,
       },
-      returnUrl: `${appUrl()}/commande/${reference}`,
-      notifyUrl:
-        provider.id === "CINETPAY"
-          ? `${appUrl()}/api/payments/webhook`
-          : `${appUrl()}/api/webhooks/${provider.id.toLowerCase()}`,
+      returnUrl: `${appUrl()}/orders?orderId=${createdOrderId}`,
+      notifyUrl: `${appUrl()}/api/payments/webhook`,
       metadata: { product: product.id, vendor: product.vendorId },
     });
   } catch (error) {
@@ -314,6 +317,15 @@ export async function createOrderAction(formData: FormData) {
       lastError: intent.status === "FAILED" ? (intent.message ?? null) : null,
     },
   });
+
+  // Le token Payin est conservé sur la commande : c'est la clé d'idempotence
+  // des webhooks (un rejeu ne peut jamais créditer deux fois).
+  if (intent.providerTxnId) {
+    await db.order.update({
+      where: { id: createdOrderId },
+      data: { paymentToken: intent.providerTxnId, tokenPay: intent.providerTxnId },
+    });
+  }
 
   if (intent.status === "FAILED") {
     await applyPaymentStatus(merchantReference, "FAILED", {

@@ -79,6 +79,12 @@ export async function requireUser(nextPath?: string) {
   return user;
 }
 
+export async function requireAdmin(nextPath = "/espace-admin") {
+  const user = await requireUser(nextPath);
+  if (user.role !== "ADMIN") redirect("/");
+  return user;
+}
+
 export async function requireVendor(nextPath = "/espace-vendeur") {
   const user = await requireUser(nextPath);
   if (!user.vendor) redirect("/espace-vendeur/creer");

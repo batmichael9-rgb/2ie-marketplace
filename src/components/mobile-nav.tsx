@@ -17,6 +17,7 @@ import { logoutAction } from "@/server/actions/auth";
 type MobileNavProps = {
   isLoggedIn: boolean;
   isVendor: boolean;
+  isAdmin?: boolean;
   firstName: string | null;
   unreadCount: number;
 };
@@ -25,7 +26,13 @@ type MobileNavProps = {
  * Menu mobile « 3 traits » du header, structuré comme le menu compte Alibaba :
  * espace vendeur, commandes, messages (avec compteur) et profil.
  */
-export function MobileNav({ isLoggedIn, isVendor, firstName, unreadCount }: MobileNavProps) {
+export function MobileNav({
+  isLoggedIn,
+  isVendor,
+  isAdmin = false,
+  firstName,
+  unreadCount,
+}: MobileNavProps) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -105,6 +112,13 @@ export function MobileNav({ isLoggedIn, isVendor, firstName, unreadCount }: Mobi
                   <Link href="/espace-vendeur" className={linkClass} onClick={() => setOpen(false)}>
                     <Store className="size-4 text-slate-500" aria-hidden />
                     Mon espace vendeur
+                  </Link>
+                ) : null}
+
+                {isAdmin ? (
+                  <Link href="/espace-admin" className={linkClass} onClick={() => setOpen(false)}>
+                    <Store className="size-4 text-slate-500" aria-hidden />
+                    Reversements vendeurs
                   </Link>
                 ) : null}
 

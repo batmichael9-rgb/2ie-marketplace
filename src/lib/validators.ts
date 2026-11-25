@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { MOBILE_MONEY_PROVIDERS, VENDOR_EMAIL_DOMAIN } from "@/lib/domain";
+import {
+  MOBILE_MONEY_PROVIDERS,
+  PAYOUT_METHODS,
+  VENDOR_EMAIL_DOMAIN,
+  normalizeBfPhone,
+} from "@/lib/domain";
 
 /** Opérateur Mobile Money : ORANGE_MONEY | MOOV_MONEY | WAVE. */
 const mobileMoneyProvider = z
@@ -13,6 +18,38 @@ const phone = z
   .min(8, "Numéro de téléphone trop court (8 chiffres minimum).")
   .max(20, "Numéro de téléphone trop long (20 caractères maximum).")
   .regex(/^[0-9+\s().-]+$/, "Numéro invalide : chiffres, espaces, +, - et parenthèses uniquement.");
+
+/** Numéro burkinabè obligatoire, normalisé en +226XXXXXXXX. */
+const requiredBfPhone = z.preprocess(
+  (value) => normalizeBfPhone(value == null ? "" : String(value)),
+  z
+    .string()
+    .regex(
+      /^\+226\d{8}$/,
+      "Numéro invalide : utilise le format Burkina Faso +226 XX XX XX XX.",
+    ),
+);
+
+/** Numéro burkinabè facultatif : vide ou normalisé en +226XXXXXXXX. */
+const optionalBfPhone = z.preprocess(
+  (value) => {
+    const raw = value == null ? "" : String(value).trim();
+    if (raw === "") return "";
+    // Un numéro invalide est conservé tel quel pour que la validation échoue
+    // au lieu d'être silencieusement effacé.
+    return normalizeBfPhone(raw) || raw;
+  },
+  z
+    .string()
+    .refine(
+      (value) => value === "" || /^\+226\d{8}$/.test(value),
+      "Numéro invalide : utilise le format Burkina Faso +226 XX XX XX XX.",
+    ),
+);
+
+const payoutMethod = z.enum(PAYOUT_METHODS, {
+  error: "Choisis un mode de versement préféré.",
+});
 
 const password = z
   .string({ error: "Indique ton mot de passe." })
@@ -109,6 +146,15 @@ export const vendorProfileSchema = z.object({
   campus: campusSchema,
 });
 
+/** Formulaire « Mes comptes de versement » (réception des 95 % vendeur). */
+export const payoutAccountsSchema = z.object({
+  orangeMoneyNumber: requiredBfPhone,
+  moovMoneyNumber: optionalBfPhone,
+  waveNumber: optionalBfPhone,
+  bankCardOrAccount: optionalText(80),
+  preferredPayoutMethod: payoutMethod.default("ORANGE_MONEY"),
+});
+
 /** Formulaire de la page /profil : compte client, complété par la boutique si vendeur. */
 export const profileSchema = z.object({
   fullName: z.string().trim().min(2, "Indique ton nom complet (2 caractères minimum).").max(80),
@@ -153,6 +199,11 @@ export const checkoutSchema = z.object({
   provider: z
     .string({ error: "Choisis un moyen de paiement." })
     .min(1, "Choisis un moyen de paiement."),
+  operator: z
+    .enum(["ORANGE_MONEY", "MOOV_MONEY", "WAVE", "CARD"], {
+      error: "Choisis ton moyen de paiement : Orange Money, Moov Money, Wave ou carte bancaire.",
+    })
+    .default("ORANGE_MONEY"),
   buyerName: z
     .string({ error: "Indique ton nom complet." })
     .trim()

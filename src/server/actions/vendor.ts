@@ -11,6 +11,7 @@ import { restockOrder } from "@/lib/stock";
 import { ImageUploadError, uploadProductImage } from "@/lib/storage";
 import {
   deleteProductSchema,
+  payoutAccountsSchema,
   productSchema,
   stockUpdateSchema,
   vendorProfileSchema,
@@ -44,27 +45,82 @@ export async function updateVendorProfileAction(formData: FormData) {
 
   const data = parsed.data;
 
+  await db.vendorProfile.update({
+    where: { id: vendor.id },
+    data: {
+      shopName: data.shopName,
+      description: data.description || null,
+      roomNumber: data.roomNumber || null,
+      campus: data.campus,
+      acceptsCashPayment: formData.get("acceptsCashPayment") === "on",
+    },
+  });
+
+  revalidatePath("/espace-vendeur");
+  revalidatePath("/profil");
+  revalidatePath("/parametres");
+  revalidatePath("/");
+  redirect("/espace-vendeur?boutique=maj#boutique");
+}
+
+/**
+ * Comptes de réception des 95 % (reversements vendeur).
+ *
+ * Le numéro Orange Money est obligatoire et normalisé en +226XXXXXXXX ; il
+ * conditionne la publication d'articles. Le mode préféré doit correspondre à un
+ * compte renseigné.
+ */
+export async function updateVendorPayoutAccountsAction(formData: FormData) {
+  const { vendor } = await requireVendor();
+
+  const parsed = payoutAccountsSchema.safeParse({
+    orangeMoneyNumber: formData.get("orangeMoneyNumber"),
+    moovMoneyNumber: formData.get("moovMoneyNumber"),
+    waveNumber: formData.get("waveNumber"),
+    bankCardOrAccount: formData.get("bankCardOrAccount"),
+    preferredPayoutMethod: formData.get("preferredPayoutMethod") || "ORANGE_MONEY",
+  });
+
+  if (!parsed.success) {
+    redirect("/espace-vendeur?erreur=versement#versements");
+  }
+
+  const data = parsed.data;
+
+  const selectedPayoutAccount =
+    data.preferredPayoutMethod === "ORANGE_MONEY"
+      ? data.orangeMoneyNumber
+      : data.preferredPayoutMethod === "MOOV_MONEY"
+        ? data.moovMoneyNumber
+        : data.preferredPayoutMethod === "WAVE"
+          ? data.waveNumber
+          : data.bankCardOrAccount;
+
+  if (!selectedPayoutAccount) {
+    redirect("/espace-vendeur?erreur=versement-compte#versements");
+  }
+
   await db.$transaction(async (tx) => {
     await tx.vendorProfile.update({
       where: { id: vendor.id },
       data: {
-        shopName: data.shopName,
-        description: data.description || null,
-        roomNumber: data.roomNumber || null,
-        momoNumber: data.momoNumber || null,
-        momoOperator: data.momoOperator || null,
-        campus: data.campus,
-        acceptsCashPayment: formData.get("acceptsCashPayment") === "on",
+        orangeMoneyNumber: data.orangeMoneyNumber,
+        moovMoneyNumber: data.moovMoneyNumber || null,
+        waveNumber: data.waveNumber || null,
+        bankCardOrAccount: data.bankCardOrAccount || null,
+        preferredPayoutMethod: data.preferredPayoutMethod,
+        // Champs historiques conservés : miroir du compte Orange Money choisi.
+        momoNumber: data.orangeMoneyNumber,
+        momoOperator: "ORANGE_MONEY",
       },
     });
 
-    // Numéro Mobile Money de reversement : également disponible sur le compte
-    // (page Paramètres / Mon profil) pour rester une seule source cohérente.
     await tx.user.update({
       where: { id: vendor.userId },
       data: {
-        mobileMoneyNumber: data.momoNumber || null,
-        mobileMoneyProvider: data.momoOperator || null,
+        mobileMoneyNumber: selectedPayoutAccount,
+        mobileMoneyProvider:
+          data.preferredPayoutMethod === "CARD" ? null : data.preferredPayoutMethod,
       },
     });
   });
@@ -73,7 +129,7 @@ export async function updateVendorProfileAction(formData: FormData) {
   revalidatePath("/profil");
   revalidatePath("/parametres");
   revalidatePath("/");
-  redirect("/espace-vendeur?boutique=maj#boutique");
+  redirect("/espace-vendeur?versement=maj#versements");
 }
 
 // ---------------------------------------------------------------------------
@@ -88,6 +144,16 @@ function productErrorUrl(message: string): string {
 
 export async function createProductAction(formData: FormData) {
   const { vendor } = await requireVendor("/espace-vendeur/produits/nouveau");
+
+  // Sans numéro Orange Money de réception, les 95 % ne peuvent pas être
+  // reversés : la publication d'articles reste bloquée.
+  if (!vendor.orangeMoneyNumber) {
+    redirect(
+      productErrorUrl(
+        "Renseigne d'abord ton numéro Orange Money dans « Mes comptes de versement » pour pouvoir publier un article.",
+      ),
+    );
+  }
 
   const parsed = productSchema.safeParse({
     name: formData.get("name"),

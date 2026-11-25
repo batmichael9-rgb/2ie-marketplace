@@ -63,7 +63,7 @@ export default async function OrderPage({
   const paid = order.paymentStatus === "PAID";
 
   const pendingOnlinePayment =
-    payment?.provider === "CINETPAY" &&
+    payment?.provider === "MONEYFUSION" &&
     (payment.status === "PENDING" || payment.status === "CREATED") &&
     !paid;
 
@@ -183,7 +183,15 @@ export default async function OrderPage({
         <h2 className="font-semibold">Retrait</h2>
         <p>
           <strong>Vendeur :</strong> {order.vendor.shopName}
+          <span className="ml-2 rounded-full bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-800">
+            Vendeur vérifié 2iE
+          </span>
         </p>
+        {order.vendor.orangeMoneyNumber ? (
+          <p className="text-xs font-medium text-teal-800">
+            ✓ Versement vendeur configuré (Orange Money vérifié)
+          </p>
+        ) : null}
         {order.vendor.roomNumber ? (
           <p>
             <strong>Chambre :</strong> {order.vendor.roomNumber}

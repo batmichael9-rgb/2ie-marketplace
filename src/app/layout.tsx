@@ -55,6 +55,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const user = await getCurrentUser();
   const firstName = user?.fullName.split(" ")[0] ?? null;
   const isVendor = Boolean(user?.vendor) || user?.role === "ADMIN";
+  const isAdmin = user?.role === "ADMIN";
   // Badge rouge du header : total des messages non lus, toutes conversations.
   const unreadCount = user ? await countUnreadMessages(user.id) : 0;
 
@@ -85,11 +86,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   Espace vendeur
                 </Link>
               ) : null}
+              {isAdmin ? (
+                <Link href="/espace-admin" className="btn-ghost">
+                  Reversements
+                </Link>
+              ) : null}
             </nav>
 
             <HeaderActions
               isLoggedIn={Boolean(user)}
               isVendor={isVendor}
+              isAdmin={isAdmin}
               firstName={firstName}
               unreadCount={unreadCount}
             />
@@ -98,6 +105,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <MobileNav
                 isLoggedIn={Boolean(user)}
                 isVendor={isVendor}
+                isAdmin={isAdmin}
                 firstName={firstName}
                 unreadCount={unreadCount}
               />
@@ -109,7 +117,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
         <footer className="border-t border-slate-200 px-4 py-8 text-center text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
           <p>2iE Market — projet étudiant de l'Institut 2iE, Ouagadougou.</p>
-          <p className="mt-1">Paiement à la réception disponible · Mobile Money en préparation.</p>
+          <p className="mt-1">
+            Paiement en ligne sécurisé · Orange Money, Moov Money, Wave et carte bancaire.
+          </p>
         </footer>
 
         <ServiceWorkerRegister />

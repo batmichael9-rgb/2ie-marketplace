@@ -233,6 +233,41 @@ export function mobileMoneyLabel(provider: string | null | undefined): string | 
   return MOBILE_MONEY_LABELS[provider as MobileMoneyProvider] ?? provider;
 }
 
+/** Moyens de réception des reversements vendeur (part nette de 95 %). */
+export const PAYOUT_METHODS = ["ORANGE_MONEY", "MOOV_MONEY", "WAVE", "CARD"] as const;
+export type PayoutMethod = (typeof PAYOUT_METHODS)[number];
+
+export const PAYOUT_METHOD_LABELS: Record<PayoutMethod, string> = {
+  ORANGE_MONEY: "Orange Money",
+  MOOV_MONEY: "Moov Money",
+  WAVE: "Wave",
+  CARD: "Carte bancaire / RIB",
+};
+
+export function payoutMethodLabel(method: string | null | undefined): string {
+  if (!method) return PAYOUT_METHOD_LABELS.ORANGE_MONEY;
+  return PAYOUT_METHOD_LABELS[method as PayoutMethod] ?? method;
+}
+
+/**
+ * Normalise un numéro burkinabè au format international +226XXXXXXXX.
+ * Renvoie une chaîne vide si le numéro n'est pas exploitable.
+ */
+export function normalizeBfPhone(raw: string | null | undefined): string {
+  let digits = String(raw ?? "").replace(/\D/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("226")) digits = digits.slice(3);
+  return /^\d{8}$/.test(digits) ? `+226${digits}` : "";
+}
+
+/** Formate un numéro +226XXXXXXXX en « +226 XX XX XX XX » pour l'affichage. */
+export function formatBfPhone(raw: string | null | undefined): string | null {
+  const normalized = normalizeBfPhone(raw);
+  if (!normalized) return null;
+  const local = normalized.slice(4);
+  return `+226 ${local.slice(0, 2)} ${local.slice(2, 4)} ${local.slice(4, 6)} ${local.slice(6, 8)}`;
+}
+
 export function formatDate(value: Date | string): string {
   const date = typeof value === "string" ? new Date(value) : value;
   return new Intl.DateTimeFormat("fr-FR", {

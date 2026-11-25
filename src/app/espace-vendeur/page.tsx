@@ -9,8 +9,9 @@ import {
   CAMPUSES,
   ORDER_STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
+  formatBfPhone,
   formatDate,
-  mobileMoneyLabel,
+  payoutMethodLabel,
   type OrderStatus,
 } from "@/lib/domain";
 import { formatXof } from "@/lib/money";
@@ -20,6 +21,7 @@ import {
   deleteProductAction,
   updateOrderAction,
   updateStockAction,
+  updateVendorPayoutAccountsAction,
   updateVendorProfileAction,
 } from "@/server/actions/vendor";
 
@@ -36,12 +38,27 @@ export default async function VendorDashboardPage({
     commande?: string;
     partage?: string;
     boutique?: string;
+    versement?: string;
     erreur?: string;
     supprimer?: string;
   }>;
 }) {
   const { vendor } = await requireVendor();
   const params = await searchParams;
+
+  // Compte qui recevra effectivement les 95 % nets, selon le mode préféré.
+  const payoutAccount =
+    vendor.preferredPayoutMethod === "MOOV_MONEY"
+      ? vendor.moovMoneyNumber
+      : vendor.preferredPayoutMethod === "WAVE"
+        ? vendor.waveNumber
+        : vendor.preferredPayoutMethod === "CARD"
+          ? vendor.bankCardOrAccount
+          : vendor.orangeMoneyNumber;
+  const payoutAccountDisplay =
+    vendor.preferredPayoutMethod === "CARD"
+      ? payoutAccount
+      : formatBfPhone(payoutAccount);
 
   // URL publique des liens de partage : NEXT_PUBLIC_APP_URL en priorité, sinon
   // l'hôte réel de la requête (jamais localhost en production).
@@ -120,6 +137,9 @@ export default async function VendorDashboardPage({
     params.commande === "maj" ? "Commande mise à jour." : null,
     params.partage ? "Lien de partage créé, prêt à envoyer sur WhatsApp." : null,
     params.boutique === "maj" ? "Informations de la boutique mises à jour." : null,
+    params.versement === "maj"
+      ? "Comptes de versement enregistrés : tes 95 % seront reversés sur le compte choisi."
+      : null,
   ].filter(Boolean) as string[];
 
   const errors: Record<string, string> = {
@@ -134,6 +154,10 @@ export default async function VendorDashboardPage({
       "Ce paiement Mobile Money n'est pas encore confirmé par l'opérateur. Attends la confirmation avant de livrer.",
     "remboursement-requis":
       "Cette commande a déjà été payée en ligne : un remboursement doit être traité avant de l'annuler.",
+    versement:
+      "Comptes de versement non enregistrés : le numéro Orange Money est obligatoire au format +226 XX XX XX XX.",
+    "versement-compte":
+      "Le mode de versement préféré doit correspondre à un compte renseigné.",
   };
 
   return (
@@ -183,6 +207,139 @@ export default async function VendorDashboardPage({
 
       <PushNotificationsButton />
 
+      {!vendor.orangeMoneyNumber ? (
+        <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <strong>Publie tes articles ?</strong> Renseigne d&apos;abord ton numéro Orange Money dans{" "}
+          <a href="#versements" className="font-semibold underline">
+            Mes comptes de versement
+          </a>{" "}
+          : c&apos;est le compte qui recevra tes 95 % nets.
+        </p>
+      ) : null}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Comptes de versement (réception des 95 %)                          */}
+      {/* ------------------------------------------------------------------ */}
+      <section id="versements" className="card p-5">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight">
+            Mes comptes de versement (Réception de vos 95 %)
+          </h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Chaque vente en ligne est encaissée par la plateforme, puis 95 % nets te sont
+            reversés sur le compte choisi ci-dessous. La commission plateforme de 5 % est
+            déjà déduite.
+          </p>
+        </div>
+
+        {payoutAccountDisplay ? (
+          <p className="mt-3 rounded-xl bg-teal-50 px-3 py-2 text-sm text-teal-900">
+            Versements envoyés sur {payoutMethodLabel(vendor.preferredPayoutMethod)} :{" "}
+            <span className="font-mono">{payoutAccountDisplay}</span>
+          </p>
+        ) : (
+          <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Aucun compte sélectionné : renseigne au moins ton numéro Orange Money pour recevoir
+            tes gains et publier des articles.
+          </p>
+        )}
+
+        <form action={updateVendorPayoutAccountsAction} className="mt-4 space-y-4">
+          <div>
+            <label htmlFor="orangeMoneyNumber" className="label">
+              Numéro Orange Money <span className="text-red-600">(obligatoire)</span>
+            </label>
+            <input
+              id="orangeMoneyNumber"
+              name="orangeMoneyNumber"
+              className="input"
+              inputMode="tel"
+              required
+              maxLength={20}
+              defaultValue={vendor.orangeMoneyNumber ?? ""}
+              placeholder="+226 70 00 00 00"
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Format Burkina Faso : +226 XX XX XX XX. Obligatoire pour activer le compte vendeur
+              et publier des articles.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="moovMoneyNumber" className="label">
+                Numéro Moov Money{" "}
+                <span className="badge ml-1 bg-slate-100 text-slate-600">Facultatif</span>
+              </label>
+              <input
+                id="moovMoneyNumber"
+                name="moovMoneyNumber"
+                className="input"
+                inputMode="tel"
+                maxLength={20}
+                defaultValue={vendor.moovMoneyNumber ?? ""}
+                placeholder="+226 60 00 00 00"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="waveNumber" className="label">
+                Numéro Wave{" "}
+                <span className="badge ml-1 bg-slate-100 text-slate-600">Facultatif</span>
+              </label>
+              <input
+                id="waveNumber"
+                name="waveNumber"
+                className="input"
+                inputMode="tel"
+                maxLength={20}
+                defaultValue={vendor.waveNumber ?? ""}
+                placeholder="+226 01 00 00 00"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="bankCardOrAccount" className="label">
+              Carte bancaire / RIB{" "}
+              <span className="badge ml-1 bg-slate-100 text-slate-600">Facultatif</span>
+            </label>
+            <input
+              id="bankCardOrAccount"
+              name="bankCardOrAccount"
+              className="input"
+              maxLength={80}
+              defaultValue={vendor.bankCardOrAccount ?? ""}
+              placeholder="Numéro de carte ou RIB pour un virement"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="preferredPayoutMethod" className="label">
+              Mode de versement préféré
+            </label>
+            <select
+              id="preferredPayoutMethod"
+              name="preferredPayoutMethod"
+              className="input"
+              defaultValue={vendor.preferredPayoutMethod ?? "ORANGE_MONEY"}
+            >
+              <option value="ORANGE_MONEY">Orange Money</option>
+              <option value="MOOV_MONEY">Moov Money</option>
+              <option value="WAVE">Wave</option>
+              <option value="CARD">Carte bancaire / RIB</option>
+            </select>
+            <p className="mt-1 text-xs text-slate-500">
+              Les 95 % nets seront reversés sur ce compte. Il doit être renseigné ci-dessus.
+            </p>
+          </div>
+
+          <button type="submit" className="btn-primary">
+            Enregistrer mes comptes de versement
+          </button>
+        </form>
+      </section>
+
       {/* ------------------------------------------------------------------ */}
       {/* Finances & reversements                                            */}
       {/* ------------------------------------------------------------------ */}
@@ -219,11 +376,11 @@ export default async function VendorDashboardPage({
               {formatXof(payoutTotals.paidOut)}
             </dd>
             <p className="mt-1 text-xs text-slate-500">
-              {vendor.momoNumber
-                ? `Numéro Mobile Money : ${vendor.momoNumber}${
-                    vendor.momoOperator ? ` (${mobileMoneyLabel(vendor.momoOperator)})` : ""
-                  }`
-                : "Aucun numéro Mobile Money enregistré : ajoute-le ci-dessous pour recevoir tes reversements."}
+              {payoutAccountDisplay
+                ? `Compte de versement : ${payoutAccountDisplay} (${payoutMethodLabel(
+                    vendor.preferredPayoutMethod,
+                  )})`
+                : "Aucun compte de versement au-dessus : ouvre « Mes comptes de versement » pour les recevoir."}
             </p>
           </div>
         </dl>
@@ -237,6 +394,7 @@ export default async function VendorDashboardPage({
                   <th className="px-4 py-2.5 font-semibold">Prix payé</th>
                   <th className="px-4 py-2.5 font-semibold">Commission 5 %</th>
                   <th className="px-4 py-2.5 font-semibold">Net vendeur</th>
+                  <th className="px-4 py-2.5 font-semibold">Compte de versement</th>
                   <th className="px-4 py-2.5 font-semibold">Reversement</th>
                 </tr>
               </thead>
@@ -253,6 +411,9 @@ export default async function VendorDashboardPage({
                     <td className="px-4 py-2.5 font-semibold">
                       {formatXof(order.vendorNetAmount || order.totalXof)}
                     </td>
+                    <td className="px-4 py-2.5 font-mono text-xs">
+                      {payoutAccountDisplay ?? "Non configuré"}
+                    </td>
                     <td className="px-4 py-2.5">
                       <span
                         className={
@@ -263,7 +424,9 @@ export default async function VendorDashboardPage({
                       >
                         {order.payoutStatus === "PAID_OUT"
                           ? "Reversé"
-                          : "En attente de reversement"}
+                          : order.payoutStatus === "PROCESSING"
+                            ? "Reversement en cours"
+                            : "En attente de reversement"}
                       </span>
                     </td>
                   </tr>
@@ -389,63 +552,6 @@ export default async function VendorDashboardPage({
             />
           </div>
 
-          <fieldset className="space-y-3 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-            <legend className="px-1 text-sm font-semibold">Paiement & Mobile Money</legend>
-            <p className="text-xs text-slate-500">
-              Utilisé pour les paiements et les reversements de tes ventes.
-            </p>
-
-            <div>
-              <label htmlFor="momoNumber" className="label">
-                Numéro Mobile Money{" "}
-                <span className="font-normal text-slate-400">(facultatif)</span>
-              </label>
-              <input
-                id="momoNumber"
-                name="momoNumber"
-                inputMode="tel"
-                maxLength={20}
-                className="input"
-                defaultValue={vendor.momoNumber ?? ""}
-                placeholder="+226 70 00 00 00"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="momoOperator" className="label">
-                Opérateur Mobile Money
-              </label>
-              <select
-                id="momoOperator"
-                name="momoOperator"
-                className="input"
-                defaultValue={vendor.momoOperator ?? ""}
-              >
-                <option value="">Non précisé</option>
-                <option value="ORANGE_MONEY">Orange Money</option>
-                <option value="MOOV_MONEY">Moov Money</option>
-                <option value="WAVE">Wave</option>
-              </select>
-            </div>
-
-            <label className="flex items-start gap-3">
-              <input
-                type="checkbox"
-                name="acceptsCashPayment"
-                defaultChecked={vendor.acceptsCashPayment}
-                className="mt-1 size-4 accent-teal-700"
-              />
-              <span>
-                <span className="block text-sm font-semibold">
-                  Accepter le paiement à la remise sur le campus
-                </span>
-                <span className="block text-xs text-slate-600">
-                  Les clients peuvent payer en espèces ou par transfert direct au moment du
-                  retrait. Sans commission plateforme.
-                </span>
-              </span>
-            </label>
-          </fieldset>
 
           <button type="submit" className="btn-primary">
             Enregistrer
@@ -483,7 +589,7 @@ export default async function VendorDashboardPage({
               );
               const paymentLabel = PAYMENT_STATUS_LABELS[order.paymentStatus] ?? order.paymentStatus;
               const awaitingOnlinePayment =
-                payment?.provider === "CINETPAY" &&
+                payment?.provider === "MONEYFUSION" &&
                 (payment.status === "CREATED" || payment.status === "PENDING");
 
               return (

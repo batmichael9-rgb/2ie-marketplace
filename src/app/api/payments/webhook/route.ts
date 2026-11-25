@@ -1,118 +1,107 @@
 import { Prisma } from "@prisma/client";
-import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { formatXof } from "@/lib/money";
+import { computeFeeBreakdown, formatXof } from "@/lib/money";
 import { applyPaymentStatus } from "@/lib/payments/apply";
-import { cinetpayProvider, parseCinetpayWebhookBody } from "@/lib/payments/cinetpay";
+import { checkPaymentStatus, parseMoneyFusionWebhookBody } from "@/lib/payments/moneyfusion";
 import { notifyUserSafely } from "@/lib/push";
 
 /**
- * Notification CinetPay API v1 : POST /api/payments/webhook
+ * Notification Payin Money Fusion : POST /api/payments/webhook
  *
- * Pipeline de sécurité :
- *  1. `notify_token` reçu est comparé (timing-safe) à celui enregistré à
- *     l'initialisation du paiement ;
- *  2. le statut est réinterrogé via GET /v1/payment/{id} avec un Bearer token ;
- *  3. le statut doit être SUCCESS et, si l'API renvoie un montant, il doit
- *     correspondre exactement au montant attendu ;
+ * Événements traités : `payin.session.completed`, `payin.session.pending`,
+ * `payin.session.cancelled` (ainsi que tout corps portant `statut: "paid"`).
+ *
+ * Pipeline :
+ *  1. le token Payin (`tokenPay`) identifie la commande, jamais le montant ;
+ *  2. l'événement est dédupliqué dans PaymentEvent ;
+ *  3. le statut est réinterrogé côté serveur (`/paiementNotif/{token}`) ;
  *  4. l'application à la commande est idempotente : un rejeu ne crédite qu'une
- *     fois.
- *
- * Le corps de la notification ne sert jamais de preuve de paiement.
+ *     fois et ne reverse jamais deux fois.
  */
-function tokensMatch(expected: string | null, received: string | null): boolean {
-  if (!expected || !received) return false;
-  const a = Buffer.from(expected);
-  const b = Buffer.from(received);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
 
 function json(body: Record<string, unknown>, status = 200) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
 }
 
+function extractToken(body: Record<string, unknown>): string | null {
+  const token = body.tokenPay ?? body.token_pay ?? body.token ?? body.payment_token;
+  return token ? String(token) : null;
+}
+
+function extractOrderId(body: Record<string, unknown>): string | null {
+  const info = Array.isArray(body.personal_Info) ? body.personal_Info[0] : null;
+  if (!info || typeof info !== "object") return null;
+  const orderId = (info as Record<string, unknown>).orderId;
+  return orderId ? String(orderId) : null;
+}
+
 export async function POST(request: Request) {
   const rawBody = await request.text();
-  const body = parseCinetpayWebhookBody(rawBody);
+  const body = parseMoneyFusionWebhookBody(rawBody);
   if (!body) {
-    // Réponse 200 : inutile de déclencher une tempête de retries sur un corps illisible.
     return json({ received: true, ignored: "unparsable" });
   }
 
-  const merchantRefRaw = body.merchant_transaction_id ?? null;
-  const providerTxnRaw = body.transaction_id ?? null;
-  const notifyToken = body.notify_token ? String(body.notify_token) : null;
+  const token = extractToken(body);
+  const orderId = extractOrderId(body);
 
-  if (!merchantRefRaw && !providerTxnRaw) {
-    return json({ received: true, ignored: "missing_reference" });
+  const order = token
+    ? await db.order.findFirst({
+        where: { tokenPay: token },
+        include: {
+          payments: { orderBy: { createdAt: "desc" }, take: 1 },
+          vendor: { select: { userId: true } },
+        },
+      })
+    : orderId
+      ? await db.order.findUnique({
+          where: { id: orderId },
+          include: {
+            payments: { orderBy: { createdAt: "desc" }, take: 1 },
+            vendor: { select: { userId: true } },
+          },
+        })
+      : null;
+
+  if (!order) {
+    return json({ received: true, ignored: "order_not_found" });
   }
 
-  const include = {
-    order: {
-      select: {
-        reference: true,
-        totalXof: true,
-        grossAmount: true,
-        platformFee: true,
-        vendorNetAmount: true,
-        vendor: { select: { userId: true, shopName: true } },
-      },
-    },
-  } as const;
-
-  const payment = merchantRefRaw
-    ? await db.payment.findUnique({
-        where: { merchantRef: String(merchantRefRaw) },
-        include,
-      })
-    : await db.payment.findFirst({
-        where: {
-          provider: cinetpayProvider.id,
-          providerTxnId: String(providerTxnRaw),
-        },
-        include,
-      });
-
+  const payment = order.payments[0];
   if (!payment) {
     return json({ received: true, ignored: "payment_not_found" });
   }
 
-  // --- 1. Authentification de la notification -----------------------------
-  if (!tokensMatch(payment.notifyToken, notifyToken)) {
-    return json({ error: "invalid_notify_token" }, 401);
-  }
+  const event = body.event ? String(body.event) : "";
+  const rawStatus = String(body.statut ?? body.status ?? "").trim().toLowerCase();
+  const eventKey = event || rawStatus || "notification";
 
-  // --- Anti-rejeu : un même événement n'est traité qu'une fois --------------
-  const providerEventId = String(
-    providerTxnRaw ?? notifyToken ?? payment.merchantRef,
-  );
+  // --- Anti-rejeu : un même événement n'est traité qu'une seule fois --------
   let eventId: string | null = null;
-
   try {
-    const event = await db.paymentEvent.create({
+    const created = await db.paymentEvent.create({
       data: {
         paymentId: payment.id,
-        provider: cinetpayProvider.id,
-        providerEventId,
-        eventType: "payment.notification",
+        provider: "MONEYFUSION",
+        providerEventId: `${token ?? order.id}:${eventKey}`,
+        eventType: event || "payin.notification",
         payload: rawBody.slice(0, 20_000),
         signatureValid: true,
       },
     });
-    eventId = event.id;
+    eventId = created.id;
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       const existing = await db.paymentEvent.findUnique({
         where: {
           provider_providerEventId: {
-            provider: cinetpayProvider.id,
-            providerEventId,
+            provider: "MONEYFUSION",
+            providerEventId: `${token ?? order.id}:${eventKey}`,
           },
         },
         select: { id: true, processedAt: true },
       });
-      // Déjà traité avec succès : on répond 200 sans rien recréditer.
       if (existing?.processedAt) {
         return json({ received: true, duplicate: true });
       }
@@ -122,66 +111,88 @@ export async function POST(request: Request) {
     }
   }
 
-  const fail = async (reason: string, status = 200) => {
-    if (eventId) {
-      await db.paymentEvent.update({
-        where: { id: eventId },
-        data: { processingError: reason },
-      });
-    }
-    return json({ received: true, ignored: reason }, status);
+  const markProcessed = async (error: string | null = null) => {
+    if (!eventId) return;
+    await db.paymentEvent.update({
+      where: { id: eventId },
+      data: { processedAt: error ? null : new Date(), processingError: error },
+    });
   };
 
-  // --- 2. Réinterrogation obligatoire de CinetPay (Bearer v1) --------------
-  const verified = await cinetpayProvider.verifyPayment({
-    merchantRef: payment.merchantRef,
-    providerTxnId: payment.providerTxnId,
-  });
+  const completed = event.includes("completed") || rawStatus === "paid" || rawStatus === "success";
+  const pending = event.includes("pending") || rawStatus === "pending";
+  const cancelled =
+    event.includes("cancel") || rawStatus === "cancelled" || rawStatus === "canceled";
 
-  if (verified.status === "PENDING") {
-    return fail("payment_not_confirmed");
+  if (!completed && !pending && !cancelled) {
+    await markProcessed(null);
+    return json({ received: true, ignored: "unhandled_event" });
   }
 
-  if (verified.status !== "SUCCEEDED") {
-    return fail(`payment_${verified.status.toLowerCase()}`);
+  if (pending) {
+    await applyPaymentStatus(payment.merchantRef, "PENDING", { raw: body });
+    await markProcessed();
+    return json({ received: true, outcome: "PENDING" });
   }
 
-  // --- 3. Montant exact quand l'API le fournit -----------------------------
-  if (verified.amountXof != null && Number(verified.amountXof) !== payment.amountXof) {
-    return fail("amount_mismatch");
+  if (cancelled) {
+    const outcome = await applyPaymentStatus(payment.merchantRef, "EXPIRED", {
+      raw: body,
+      message: "Paiement annulé par l'acheteur",
+    });
+    await markProcessed();
+    return json({ received: true, outcome });
   }
 
-  // --- 4. Application idempotente -----------------------------------------
+  // --- completed : vérification serveur avant crédit ----------------------
+  const verified = token ? await checkPaymentStatus(token) : null;
+
+  if (verified && (verified.status === "FAILED" || verified.status === "EXPIRED")) {
+    await markProcessed("payment_not_confirmed");
+    return json({ received: true, ignored: "payment_not_confirmed" });
+  }
+
+  if (
+    verified?.amountXof != null &&
+    Number(verified.amountXof) !== Number(order.grossAmount || order.totalXof)
+  ) {
+    await markProcessed("amount_mismatch");
+    return json({ received: true, ignored: "amount_mismatch" });
+  }
+
   const outcome = await applyPaymentStatus(payment.merchantRef, "SUCCEEDED", {
-    providerTxnId: verified.providerTxnId,
-    raw: verified.raw,
+    providerTxnId: token ?? payment.providerTxnId,
+    raw: verified?.raw ?? body,
   });
 
   if (outcome === "PAID") {
+    // Commission 5 % / net vendeur 95 % : recalculés depuis le prix réellement
+    // encaissé, jamais depuis le corps de la notification.
+    const gross = order.grossAmount || order.totalXof;
+    const { platformFee, vendorNetAmount } = computeFeeBreakdown(gross);
+
     await db.order.update({
-      where: { id: payment.orderId },
-      data: { payoutStatus: "READY_FOR_PAYOUT" },
+      where: { id: order.id },
+      data: {
+        grossAmount: gross,
+        platformFee,
+        vendorNetAmount,
+        payoutStatus: "READY_FOR_PAYOUT",
+        paymentToken: token ?? order.paymentToken,
+        tokenPay: token ?? order.tokenPay,
+      },
     });
 
-    await notifyUserSafely(payment.order.vendor.userId, {
+    await notifyUserSafely(order.vendor.userId, {
       title: "💰 Paiement reçu sur 2iE Market",
-      body: `Commande ${payment.order.reference} payée en ligne : ${formatXof(
-        payment.order.grossAmount || payment.order.totalXof,
-      )}, net vendeur ${formatXof(
-        payment.order.vendorNetAmount ||
-          payment.order.grossAmount - payment.order.platformFee,
+      body: `Commande ${order.reference} payée en ligne : ${formatXof(gross)}, net vendeur ${formatXof(
+        vendorNetAmount,
       )}.`,
       url: "/espace-vendeur#finances",
-      tag: `payment-${payment.order.reference}`,
+      tag: `payment-${order.reference}`,
     });
   }
 
-  if (eventId) {
-    await db.paymentEvent.update({
-      where: { id: eventId },
-      data: { processedAt: new Date(), processingError: null },
-    });
-  }
-
+  await markProcessed();
   return json({ received: true, outcome });
 }

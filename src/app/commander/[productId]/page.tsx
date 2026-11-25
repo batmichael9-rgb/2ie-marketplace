@@ -7,7 +7,6 @@ import { StockBadge } from "@/components/stock-badge";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatXof } from "@/lib/money";
-import { availableProviders } from "@/lib/payments";
 import { createOrderAction } from "@/server/actions/checkout";
 
 export const metadata: Metadata = { title: "Commander" };
@@ -67,11 +66,9 @@ export default async function CheckoutPage({
   if (outOfStock) redirect(`/p/${product.slug}`);
 
   const user = await getCurrentUser();
-  // Paiement à la remise uniquement si le vendeur l'autorise ; le paiement en
-  // ligne CinetPay reste proposé dès que le compte marchand est configuré.
-  const providers = availableProviders().filter(
-    (provider) => provider.id !== "CASH" || product.vendor.acceptsCashPayment,
-  );
+  // Paiement en ligne uniquement : l'acheteur choisit son propre opérateur et
+  // saisit son propre numéro. Il n'a jamais à connaître le compte du vendeur.
+  const onlinePaymentReady = Boolean(process.env.MONEYFUSION_PRIVATE_KEY);
 
   const maxQuantity =
     product.stockMode === "TRACKED" ? Math.max(1, Math.min(product.stockQty, 20)) : 20;
@@ -100,8 +97,14 @@ export default async function CheckoutPage({
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold">{product.name}</p>
           <p className="text-sm text-slate-500">{product.vendor.shopName}</p>
+          <p className="text-xs font-medium text-teal-700">Vendeur vérifié 2iE</p>
           <CampusBadge campus={product.vendor.campus} className="mt-1" />
           <StockBadge product={product} className="mt-1" />
+          {product.vendor.orangeMoneyNumber ? (
+            <p className="mt-1 inline-flex rounded-full bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-800">
+              ✓ Versement vendeur configuré (Orange Money vérifié)
+            </p>
+          ) : null}
         </div>
         <p className="shrink-0 font-bold">{formatXof(product.priceXof)}</p>
       </div>
@@ -171,7 +174,7 @@ export default async function CheckoutPage({
           </div>
           <div>
             <label className="label" htmlFor="buyerPhone">
-              Téléphone (WhatsApp de préférence)
+              Numéro à débiter
             </label>
             <input
               id="buyerPhone"
@@ -185,6 +188,10 @@ export default async function CheckoutPage({
               aria-invalid={fieldErrors.buyerPhone ? true : undefined}
               aria-describedby={fieldErrors.buyerPhone ? "buyerPhone-error" : undefined}
             />
+            <p className="mt-1 text-xs text-slate-500">
+              Ton propre numéro Orange Money, Moov Money ou Wave. Aucun numéro du vendeur n&apos;est
+              demandé.
+            </p>
             <FieldError id="buyerPhone-error" message={fieldErrors.buyerPhone} />
           </div>
         </div>
@@ -223,39 +230,57 @@ export default async function CheckoutPage({
           <FieldError id="note-error" message={fieldErrors.note} />
         </div>
 
+        <input type="hidden" name="provider" value="MONEYFUSION" />
+
         <fieldset>
-          <legend className="label">Moyen de paiement</legend>
-          <div className="space-y-2">
-            {providers.map((provider, index) => (
+          <legend className="label">Mon moyen de paiement</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[
+              { value: "ORANGE_MONEY", label: "Orange Money" },
+              { value: "MOOV_MONEY", label: "Moov Money" },
+              { value: "WAVE", label: "Wave" },
+              { value: "CARD", label: "Carte bancaire Visa / Mastercard" },
+            ].map((option, index) => (
               <label
-                key={provider.id}
-                className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-300 p-3 has-checked:border-teal-600 has-checked:bg-teal-50/60"
+                key={option.value}
+                className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-300 p-3 has-checked:border-teal-600 has-checked:bg-teal-50/60"
               >
                 <input
                   type="radio"
-                  name="provider"
-                  value={provider.id}
+                  name="operator"
+                  value={option.value}
                   defaultChecked={index === 0}
-                  className="mt-1 size-4 accent-teal-700"
+                  className="size-4 accent-teal-700"
                 />
-                <span>
-                  <span className="block text-sm font-semibold">{provider.label}</span>
-                  <span className="block text-xs text-slate-600">{provider.description}</span>
-                </span>
+                <span className="text-sm font-semibold">{option.label}</span>
               </label>
             ))}
           </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Tu recevras une demande de confirmation de ton opérateur sur ton téléphone.
+          </p>
+          <FieldError id="operator-error" message={fieldErrors.operator} />
           <FieldError id="provider-error" message={fieldErrors.provider} />
         </fieldset>
 
-        <button type="submit" className="btn-primary w-full !py-3 text-base">
-          {product.isReservable ? "Confirmer la réservation" : "Confirmer la commande"}
+        <button
+          type="submit"
+          disabled={!onlinePaymentReady}
+          className="btn-primary w-full !py-3 text-base disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Payer {formatXof(product.priceXof)} maintenant
         </button>
 
-        <p className="text-center text-xs text-slate-500">
-          Le stock est réservé dès la confirmation. Aucun débit n&apos;a lieu avant validation du
-          paiement.
-        </p>
+        {!onlinePaymentReady ? (
+          <p className="rounded-xl bg-amber-50 px-3 py-2 text-center text-xs text-amber-900">
+            Le paiement en ligne est momentanément indisponible. Réessaie dans quelques minutes.
+          </p>
+        ) : (
+          <p className="text-center text-xs text-slate-500">
+            Le stock est réservé dès la confirmation. Aucun débit n&apos;a lieu avant validation du
+            paiement.
+          </p>
+        )}
       </form>
     </div>
   );

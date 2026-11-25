@@ -1,23 +1,23 @@
 import { cashProvider } from "./cash";
-import { cinetpayProvider } from "./cinetpay";
+import { moneyfusionProvider } from "./moneyfusion";
 import type { PaymentProvider, ProviderId } from "./types";
 
 export const providers: Record<ProviderId, PaymentProvider> = {
   CASH: cashProvider,
-  CINETPAY: cinetpayProvider,
-  // Emplacements réservés : il suffit d'implémenter PaymentProvider puis de
-  // remplacer la valeur ci-dessous. Aucun autre fichier ne change.
-  LIGDICASH: cinetpayProvider,
-  FEDAPAY: cinetpayProvider,
+  MONEYFUSION: moneyfusionProvider,
 };
 
 export function getProvider(id: string): PaymentProvider | null {
   return (providers as Record<string, PaymentProvider>)[id] ?? null;
 }
 
-/** Fournisseurs proposés au client dans le tunnel de commande. */
+/**
+ * Fournisseurs proposés au client dans le tunnel de commande.
+ * Le paiement en ligne est le seul mode proposé : l'acheteur choisit son
+ * opérateur (Orange Money, Moov Money, Wave ou carte) sur la page de paiement.
+ */
 export function availableProviders(): PaymentProvider[] {
-  return [cashProvider, cinetpayProvider].filter((provider) => provider.isEnabled());
+  return [moneyfusionProvider].filter((provider) => provider.isEnabled());
 }
 
 export type { PaymentProvider, ProviderId } from "./types";

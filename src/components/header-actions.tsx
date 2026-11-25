@@ -22,11 +22,13 @@ import { logoutAction } from "@/server/actions/auth";
 export function HeaderActions({
   isLoggedIn,
   isVendor,
+  isAdmin = false,
   firstName,
   unreadCount,
 }: {
   isLoggedIn: boolean;
   isVendor: boolean;
+  isAdmin?: boolean;
   firstName: string | null;
   unreadCount: number;
 }) {
@@ -124,6 +126,13 @@ export function HeaderActions({
                 <Link href="/espace-vendeur" role="menuitem" className={menuItem}>
                   <Store className="size-4 text-slate-500" aria-hidden />
                   Mon espace vendeur
+                </Link>
+              ) : null}
+
+              {isAdmin ? (
+                <Link href="/espace-admin" role="menuitem" className={menuItem}>
+                  <Store className="size-4 text-slate-500" aria-hidden />
+                  Reversements vendeurs
                 </Link>
               ) : null}
 

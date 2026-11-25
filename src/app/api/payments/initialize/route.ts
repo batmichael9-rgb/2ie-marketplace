@@ -6,28 +6,28 @@ import { db } from "@/lib/db";
 import { appUrl, generateOrderReference } from "@/lib/domain";
 import { computeFeeBreakdown } from "@/lib/money";
 import { applyPaymentStatus } from "@/lib/payments/apply";
-import { cinetpayProvider } from "@/lib/payments/cinetpay";
+import { moneyfusionProvider } from "@/lib/payments/moneyfusion";
 import { reserveStock } from "@/lib/stock";
 
 /**
- * Initialisation d'un paiement en ligne CinetPay (API v1).
+ * Encaissement acheteur (Payin) — POST /api/payments/initialize
  *
- * L'acheteur est redirigé vers `payment_url` renvoyé par CinetPay, où il choisit
- * Orange Money, Moov Money ou la carte bancaire. `transaction_id` et
- * `notify_token` sont enregistrés sur le paiement pour vérifier la notification.
- *
- * Le prix est relu en base : le client ne peut jamais imposer un montant. Le
- * montant payé est exactement le prix du catalogue ; la commission de 5 % est
- * déduite de la part vendeur (95 %).
- *
- * La réponse contient l'URL de paiement CinetPay vers laquelle rediriger
- * l'acheteur. La commande reste PENDING jusqu'à la confirmation du webhook.
+ * Le prix est relu en base : le client ne peut jamais imposer `totalPrice`.
+ * L'acheteur paie exactement le prix du catalogue ; la commission de 5 % est
+ * déduite de la part vendeur (95 % nets). Le `tokenPay` renvoyé par Money Fusion
+ * est conservé sur la commande (clé d'idempotence des webhooks) et l'acheteur
+ * est redirigé vers l'URL de paiement.
  */
 const initSchema = z.object({
   productId: z.string().trim().min(1, "Produit manquant : recharge la page."),
   quantity: z.coerce.number().int().min(1).max(50).default(1),
   buyerName: z.string().trim().min(2, "Indique ton nom complet.").max(80),
   buyerPhone: z.string().trim().min(8, "Indique ton numéro de téléphone.").max(20),
+  operator: z
+    .enum(["ORANGE_MONEY", "MOOV_MONEY", "WAVE", "CARD"], {
+      error: "Choisis ton moyen de paiement.",
+    })
+    .default("ORANGE_MONEY"),
   buyerRoom: z.string().trim().max(30).optional().or(z.literal("")),
   pickupSlot: z.string().trim().max(60).optional().or(z.literal("")),
   note: z.string().trim().max(300).optional().or(z.literal("")),
@@ -53,13 +53,16 @@ export async function POST(request: Request) {
   const parsed = initSchema.safeParse(rawBody);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "invalid_input", message: parsed.error.issues[0]?.message ?? "Formulaire incomplet." },
+      {
+        error: "invalid_input",
+        message: parsed.error.issues[0]?.message ?? "Formulaire incomplet.",
+      },
       { status: 400, headers: { "Cache-Control": "no-store" } },
     );
   }
 
-  if (!cinetpayProvider.isEnabled()) {
-    return jsonError("cinetpay_unavailable", 503);
+  if (!moneyfusionProvider.isEnabled()) {
+    return jsonError("payment_unavailable", 503);
   }
 
   const data = parsed.data;
@@ -67,7 +70,9 @@ export async function POST(request: Request) {
   const product = await db.product.findUnique({
     where: { id: data.productId },
     include: {
-      vendor: { select: { id: true, userId: true, isActive: true } },
+      vendor: {
+        select: { id: true, userId: true, isActive: true, orangeMoneyNumber: true },
+      },
     },
   });
 
@@ -75,16 +80,22 @@ export async function POST(request: Request) {
     return jsonError("product_unavailable", 404);
   }
 
+  // Sans compte de versement, le vendeur ne peut pas recevoir ses 95 % :
+  // l'encaissement en ligne reste bloqué.
+  if (!product.vendor.orangeMoneyNumber) {
+    return jsonError("vendor_payout_not_configured", 409);
+  }
+
   const outOfStock =
     product.stockMode === "OUT_OF_STOCK" ||
     (product.stockMode === "TRACKED" && product.stockQty < data.quantity);
   if (outOfStock) return jsonError("out_of_stock", 409);
 
-  // --- Déduplication : même clé = même commande, pas de second débit ---------
+  // --- Déduplication : même clé = même commande, pas de second débit --------
   const existingPayment = await db.payment.findUnique({
     where: {
       provider_idempotencyKey: {
-        provider: cinetpayProvider.id,
+        provider: moneyfusionProvider.id,
         idempotencyKey: data.idempotencyKey,
       },
     },
@@ -102,7 +113,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // --- Calcul des montants, à partir du prix en base ------------------------
   const grossAmount = product.priceXof * data.quantity;
   const { platformFee, vendorNetAmount } = computeFeeBreakdown(grossAmount);
   const reference = generateOrderReference();
@@ -111,6 +121,8 @@ export async function POST(request: Request) {
   const shareLink = data.shareCode
     ? await db.shareLink.findUnique({ where: { code: data.shareCode }, select: { id: true } })
     : null;
+
+  let orderId = "";
 
   try {
     await db.$transaction(async (tx) => {
@@ -154,6 +166,8 @@ export async function POST(request: Request) {
         },
       });
 
+      orderId = order.id;
+
       await tx.stockMovement.create({
         data: {
           productId: product.id,
@@ -166,7 +180,8 @@ export async function POST(request: Request) {
       await tx.payment.create({
         data: {
           orderId: order.id,
-          provider: cinetpayProvider.id,
+          provider: moneyfusionProvider.id,
+          operator: data.operator,
           idempotencyKey: data.idempotencyKey,
           merchantRef,
           amountXof: grossAmount,
@@ -189,7 +204,7 @@ export async function POST(request: Request) {
       const duplicate = await db.payment.findUnique({
         where: {
           provider_idempotencyKey: {
-            provider: cinetpayProvider.id,
+            provider: moneyfusionProvider.id,
             idempotencyKey: data.idempotencyKey,
           },
         },
@@ -206,25 +221,28 @@ export async function POST(request: Request) {
         );
       }
     }
-    console.error("Initialisation CinetPay :", error);
+    console.error("Initialisation du paiement en ligne :", error);
     return jsonError("payment_init_failed", 500);
   }
 
-  // --- Appel CinetPay hors transaction -------------------------------------
-  const intent = await cinetpayProvider.createIntent({
+  // --- Appel Money Fusion hors transaction ---------------------------------
+  const intent = await moneyfusionProvider.createIntent({
     merchantRef,
     idempotencyKey: data.idempotencyKey,
     amountXof: grossAmount,
     description: `${product.name} × ${data.quantity}`.slice(0, 100),
     orderReference: reference,
+    orderId,
+    userId: user.id,
     buyer: { name: data.buyerName, phone: data.buyerPhone, email: user.email },
-    returnUrl: `${appUrl()}/commande/${reference}`,
+    returnUrl: `${appUrl()}/orders?orderId=${orderId}`,
     notifyUrl: `${appUrl()}/api/payments/webhook`,
     metadata: {
       product: product.id,
       vendor: product.vendorId,
       gross: grossAmount,
       fee: platformFee,
+      operator: data.operator,
     },
   });
 
@@ -240,6 +258,13 @@ export async function POST(request: Request) {
     },
   });
 
+  if (intent.providerTxnId) {
+    await db.order.update({
+      where: { id: orderId },
+      data: { paymentToken: intent.providerTxnId, tokenPay: intent.providerTxnId },
+    });
+  }
+
   if (intent.status === "FAILED" || !intent.checkoutUrl) {
     await applyPaymentStatus(merchantRef, "FAILED", {
       message: intent.message ?? null,
@@ -248,7 +273,8 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: "payment_init_failed",
-        message: intent.message ?? "Le paiement n'a pas pu être initialisé. Réessaie dans un instant.",
+        message:
+          intent.message ?? "Le paiement n'a pas pu être initialisé. Réessaie dans un instant.",
       },
       { status: 502, headers: { "Cache-Control": "no-store" } },
     );
@@ -257,6 +283,7 @@ export async function POST(request: Request) {
   return NextResponse.json(
     {
       reference,
+      orderId,
       paymentUrl: intent.checkoutUrl,
       grossAmount,
       platformFee,

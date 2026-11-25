@@ -9,7 +9,7 @@ Marketplace interne des étudiants de l'Institut 2iE à Ouagadougou. Application
 - **Base de données** : PostgreSQL (Supabase)
 - **ORM** : Prisma
 - **Authentification** : Session JWT avec bcrypt
-- **Paiement** : Cash + CinetPay Mobile Money
+- **Paiement** : Money Fusion (Orange Money, Moov Money, Wave, carte bancaire) — Payin acheteur + Payout vendeur 95 %
 - **Styling** : Tailwind CSS
 - **Validation** : Zod
 
@@ -17,7 +17,7 @@ Marketplace interne des étudiants de l'Institut 2iE à Ouagadougou. Application
 
 - Node.js 18+ et npm
 - Un projet Supabase configuré
-- (Optionnel) Un compte CinetPay pour les paiements Mobile Money
+- (Optionnel) Un compte marchand Money Fusion pour les paiements en ligne et les reversements
 
 ## 🛠️ Installation locale
 
@@ -54,10 +54,11 @@ AUTH_SECRET="votre-secret-de-session-32-caracteres-minimum"
 # URL publique de l'application
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 
-# CinetPay API v1 (optionnel, pour Mobile Money)
-CINETPAY_API_KEY=""
-CINETPAY_API_PASSWORD=""
-CINETPAY_API_URL="https://api.cinetpay.net"
+# Money Fusion (optionnel, paiements en ligne + reversements vendeur)
+MONEYFUSION_API_URL="https://pay.moneyfusion.net/api/v1/payin"
+MONEYFUSION_PRIVATE_KEY=""
+# Proxy sortant à IP fixe (Fixie sur Vercel)
+FIXIE_URL=""
 
 # Commission plateforme en points de base (100 = 1 %, 500 = 5 %)
 PLATFORM_FEE_BPS="500"
@@ -168,14 +169,15 @@ vercel --prod
 
 **Variables d'environnement Vercel** : Configurer toutes les variables de `.env` dans les paramètres du projet Vercel.
 
-### 5. Configuration CinetPay (optionnel)
+### 5. Configuration Money Fusion (optionnel)
 
-Pour activer les paiements Mobile Money :
+Pour activer les paiements en ligne et les reversements vendeur :
 
-1. Créer un compte marchand sur [CinetPay](https://cinetpay.com)
-2. Récupérer `CINETPAY_API_KEY` et `CINETPAY_API_PASSWORD` (API v1)
-3. Les ajouter aux variables d'environnement (`CINETPAY_API_URL=https://api.cinetpay.net` en sandbox, `https://api.cinetpay.co` en production)
-4. Renseigner l'URL de notification `https://<votre-domaine>/api/payments/webhook`
+1. Créer un compte marchand Money Fusion
+2. Récupérer la clé privée (`MONEYFUSION_PRIVATE_KEY`) et l'URL de Payin (`MONEYFUSION_API_URL`)
+3. Définir `FIXIE_URL` en production : tous les appels sortent par ces IP fixes, à autoriser côté Money Fusion
+4. Renseigner les URL de notification `https://<votre-domaine>/api/payments/webhook` (Payin) et `https://<votre-domaine>/api/payouts/webhook` (Payout)
+5. Exécuter la migration `prisma/migrations/20261125120000_moneyfusion_v1/migration.sql` dans l'éditeur SQL Supabase
 
 ## 🔐 Gestion des rôles
 
