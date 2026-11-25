@@ -234,7 +234,13 @@ type SearchProduct = {
   createdAt: Date;
   images: { url: string }[];
   category: { name: string; slug: string } | null;
-  vendor: { shopName: string; slug: string; roomNumber: string | null; campus: string | null };
+  vendor: {
+    shopName: string;
+    slug: string;
+    roomNumber: string | null;
+    campus: string | null;
+    isOpen: boolean;
+  };
   reviews: { rating: number }[];
 };
 
@@ -333,7 +339,15 @@ export async function searchProductsIntelligently(query: string): Promise<AiSear
     include: {
       images: { orderBy: { position: "asc" }, take: 1 },
       category: { select: { name: true, slug: true } },
-      vendor: { select: { shopName: true, slug: true, roomNumber: true, campus: true } },
+      vendor: {
+        select: {
+          shopName: true,
+          slug: true,
+          roomNumber: true,
+          campus: true,
+          isOpen: true,
+        },
+      },
       reviews: { where: { isVisible: true }, select: { rating: true } },
     },
     orderBy: { createdAt: "desc" },

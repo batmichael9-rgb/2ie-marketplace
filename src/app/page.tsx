@@ -31,7 +31,15 @@ export default async function CatalogPage({
     where: { isActive: true },
     include: {
       images: { orderBy: { position: "asc" }, take: 1 },
-      vendor: { select: { shopName: true, slug: true, roomNumber: true, campus: true } },
+      vendor: {
+        select: {
+          shopName: true,
+          slug: true,
+          roomNumber: true,
+          campus: true,
+          isOpen: true,
+        },
+      },
       category: { select: { slug: true } },
       reviews: { where: { isVisible: true }, select: { rating: true } },
     },

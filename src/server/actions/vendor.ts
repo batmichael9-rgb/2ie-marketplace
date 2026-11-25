@@ -37,6 +37,8 @@ export async function updateVendorProfileAction(formData: FormData) {
     momoNumber: formData.get("momoNumber"),
     momoOperator: formData.get("momoOperator") || undefined,
     campus: formData.get("campus"),
+    isOpen: formData.get("isOpen") === "on",
+    orderCutoffTime: formData.get("orderCutoffTime"),
   });
 
   if (!parsed.success) {
@@ -53,6 +55,8 @@ export async function updateVendorProfileAction(formData: FormData) {
       roomNumber: data.roomNumber || null,
       campus: data.campus,
       acceptsCashPayment: formData.get("acceptsCashPayment") === "on",
+      isOpen: data.isOpen,
+      orderCutoffTime: data.orderCutoffTime || null,
     },
   });
 
@@ -145,6 +149,10 @@ function productErrorUrl(message: string): string {
 export async function createProductAction(formData: FormData) {
   const { vendor } = await requireVendor("/espace-vendeur/produits/nouveau");
 
+  // « Enregistrer et ajouter un autre produit » : même formulaire, mais après
+  // création on revient sur une fiche vierge en conservant les réglages.
+  const saveAndNew = formData.get("intent") === "save-and-new";
+
   // Sans numéro Orange Money de réception, la part nette ne peut pas être
   // reversés : la publication d'articles reste bloquée.
   if (!vendor.orangeMoneyNumber) {
@@ -186,7 +194,18 @@ export async function createProductAction(formData: FormData) {
   const imageField = formData.get("image");
   const image = imageField instanceof File && imageField.size > 0 ? imageField : null;
 
-  let imageUrl: string | null = null;
+  // Photo réutilisée d'un plat précédent (ajout rapide d'un menu) : on
+  // n'accepte qu'une URL publique de notre bucket Supabase.
+  const existingImageUrl = String(formData.get("existingImageUrl") ?? "").trim();
+  const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/+$/, "");
+  const reusableImageUrl =
+    existingImageUrl &&
+    supabaseUrl &&
+    existingImageUrl.startsWith(`${supabaseUrl}/storage/v1/object/public/`)
+      ? existingImageUrl
+      : null;
+
+  let imageUrl: string | null = reusableImageUrl;
   if (image) {
     try {
       imageUrl = await uploadProductImage(image);
@@ -240,6 +259,24 @@ export async function createProductAction(formData: FormData) {
 
   revalidatePath("/");
   revalidatePath("/espace-vendeur");
+
+  if (saveAndNew) {
+    // Nom, prix et description repartent à zéro ; catégorie, campus, stock,
+    // retrait et photo restent ceux du plat qui vient d'être enregistré.
+    const params = new URLSearchParams({
+      nouveau: "1",
+      categorie: data.categoryId || "",
+      campus: data.campus,
+      stockMode: data.stockMode,
+      stockQty: String(data.stockMode === "TRACKED" ? data.stockQty : 0),
+      lowStockThreshold: String(data.lowStockThreshold),
+      isReservable: data.isReservable ? "1" : "",
+      pickupNote: data.pickupNote || "",
+      image: imageUrl ?? "",
+    });
+    redirect(`${NEW_PRODUCT_URL}?${params.toString()}`);
+  }
+
   redirect("/espace-vendeur?produit=ajoute");
 }
 

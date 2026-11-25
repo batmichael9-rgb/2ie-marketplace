@@ -87,6 +87,12 @@ model VendorProfile {
   // paiement en ligne. Activé par défaut pour ne pas bloquer les vendeurs
   // existants ; le vendeur peut le désactiver depuis son espace.
   acceptsCashPayment Boolean @default(true)
+  // Ouverture de la boutique aux commandes (restaurants et fast-foods : le
+  // vendeur ferme sa boutique hors service, ses produits restent visibles mais
+  // ne peuvent plus être commandés). `orderCutoffTime` est une heure locale
+  // facultative au format HH:MM (ex. 19:30).
+  isOpen          Boolean @default(true)
+  orderCutoffTime String?
   isActive    Boolean  @default(true)
   isVerified  Boolean  @default(false)
   ratingAvg   Float    @default(0)

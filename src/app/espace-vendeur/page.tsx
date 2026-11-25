@@ -192,7 +192,19 @@ export default async function VendorDashboardPage({
             <p className="text-xs font-semibold uppercase tracking-wider text-teal-100">
               Espace vendeur
             </p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight">{vendor.shopName}</h1>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight">{vendor.shopName}</h1>
+              <span
+                className={`badge ${vendor.isOpen ? "bg-white/20 text-white" : "bg-red-100 text-red-800"}`}
+              >
+                {vendor.isOpen ? "Ouverte aux commandes" : "Fermé actuellement"}
+              </span>
+              {vendor.orderCutoffTime ? (
+                <span className="badge bg-white/20 text-white">
+                  Commandes jusqu&apos;à {vendor.orderCutoffTime}
+                </span>
+              ) : null}
+            </div>
             <p className="mt-1 max-w-xl text-sm text-teal-50">
               {vendor.description ??
                 "Gère tes produits, ton stock et tes commandes depuis cet espace."}
@@ -592,6 +604,44 @@ export default async function VendorDashboardPage({
             />
           </div>
 
+          <div className="space-y-3 rounded-xl border border-slate-200 p-3">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                name="isOpen"
+                defaultChecked={vendor.isOpen}
+                className="mt-1 size-4 accent-teal-700"
+              />
+              <span>
+                <span className="block text-sm font-semibold">
+                  Boutique ouverte aux commandes
+                </span>
+                <span className="block text-xs text-slate-600">
+                  Décoche cette case quand tu ne peux plus préparer de commandes : tes plats
+                  restent visibles avec le badge « Fermé actuellement », mais plus personne ne peut
+                  commander jusqu&apos;à la réouverture.
+                </span>
+              </span>
+            </label>
+
+            <div>
+              <label htmlFor="orderCutoffTime" className="label">
+                Heure limite de commande{" "}
+                <span className="font-normal text-slate-400">(facultatif)</span>
+              </label>
+              <input
+                id="orderCutoffTime"
+                name="orderCutoffTime"
+                type="time"
+                className="input"
+                defaultValue={vendor.orderCutoffTime ?? ""}
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Affichée sur ta vitrine (ex. 19:30) pour que les étudiants sachent jusqu&apos;à
+                quelle heure commander.
+              </p>
+            </div>
+          </div>
 
           <button type="submit" className="btn-primary">
             Enregistrer

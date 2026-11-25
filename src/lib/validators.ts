@@ -137,6 +137,17 @@ export const campusSchema = z.preprocess(
   }),
 );
 
+/** Heure locale facultative au format HH:MM (ex. 19:30). */
+const optionalClockTime = z.preprocess(
+  (value) => (value == null ? "" : String(value).trim()),
+  z
+    .string()
+    .refine(
+      (value) => value === "" || /^([01]\d|2[0-3]):[0-5]\d$/.test(value),
+      "Heure invalide : utilise le format HH:MM (ex. 19:30).",
+    ),
+);
+
 export const vendorProfileSchema = z.object({
   shopName: z.string().trim().min(2, "Nom de boutique trop court").max(60),
   description: z.string().trim().max(500).optional().or(z.literal("")),
@@ -144,6 +155,9 @@ export const vendorProfileSchema = z.object({
   momoNumber: phone.optional().or(z.literal("")),
   momoOperator: mobileMoneyProvider,
   campus: campusSchema,
+  // Interrupteur « Boutique ouverte aux commandes » : coché par défaut.
+  isOpen: z.boolean().default(true),
+  orderCutoffTime: optionalClockTime,
 });
 
 /** Formulaire « Mes comptes de versement » (réception de la part nette vendeur). */

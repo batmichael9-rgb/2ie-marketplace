@@ -71,13 +71,23 @@ export async function POST(request: Request) {
     where: { id: data.productId },
     include: {
       vendor: {
-        select: { id: true, userId: true, isActive: true, orangeMoneyNumber: true },
+        select: {
+          id: true,
+          userId: true,
+          isActive: true,
+          isOpen: true,
+          orangeMoneyNumber: true,
+        },
       },
     },
   });
 
   if (!product || !product.isActive || !product.vendor.isActive) {
     return jsonError("product_unavailable", 404);
+  }
+
+  if (!product.vendor.isOpen) {
+    return jsonError("vendor_closed", 409);
   }
 
   // Sans compte de versement, le vendeur ne peut pas recevoir sa part nette :

@@ -205,7 +205,14 @@ export default async function ProductPage({
 
         <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
           <div className="card p-5">
-            <StockBadge product={product} />
+            <div className="flex flex-wrap items-center gap-1.5">
+              <StockBadge product={product} />
+              {!product.vendor.isOpen ? (
+                <span className="badge bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300">
+                  Fermé actuellement
+                </span>
+              ) : null}
+            </div>
             <h1 className="mt-2 text-xl font-bold leading-tight">{product.name}</h1>
             <div className="mt-1">
               {ratingCount > 0 ? (
@@ -224,7 +231,14 @@ export default async function ProductPage({
             ) : null}
 
             <div className="mt-4 space-y-2">
-              {outOfStock ? (
+              {!product.vendor.isOpen ? (
+                <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
+                  Boutique fermée actuellement : les commandes sont suspendues.{" "}
+                  {product.vendor.orderCutoffTime
+                    ? `Commande habituellement jusqu'à ${product.vendor.orderCutoffTime}.`
+                    : "Reviens un peu plus tard ou écris au vendeur."}
+                </p>
+              ) : outOfStock ? (
                 <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
                   Ce produit est en rupture de stock. Demande au vendeur quand il sera de retour.
                 </p>
@@ -262,6 +276,11 @@ export default async function ProductPage({
             <h2 className="text-sm font-semibold text-slate-500">Vendu par</h2>
             <p className="mt-1 text-lg font-bold">{product.vendor.shopName}</p>
             <CampusBadge campus={product.vendor.campus} className="mt-1" />
+            {product.vendor.orderCutoffTime ? (
+              <p className="mt-1 text-xs font-medium text-slate-600 dark:text-slate-400">
+                Commandes jusqu&apos;à {product.vendor.orderCutoffTime}
+              </p>
+            ) : null}
             <div className="mt-1">
               <Stars value={product.vendor.ratingAvg} count={product.vendor.ratingCount} />
             </div>

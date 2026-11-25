@@ -97,12 +97,22 @@ export async function createOrderAction(formData: FormData) {
   const product = await db.product.findUnique({
     where: { id: data.productId },
     include: {
-      vendor: { select: { id: true, userId: true, momoNumber: true, momoOperator: true } },
+      vendor: {
+        select: { id: true, userId: true, isOpen: true, momoNumber: true, momoOperator: true },
+      },
     },
   });
 
   if (!product || !product.isActive) {
     redirect(`/commander/${productId}?erreur=${encodeURIComponent("Produit indisponible.")}`);
+  }
+
+  if (!product.vendor.isOpen) {
+    redirect(
+      `/p/${product.slug}?erreur=${encodeURIComponent(
+        "Boutique fermée actuellement : les commandes sont suspendues.",
+      )}`,
+    );
   }
 
   const user = await getCurrentUser();

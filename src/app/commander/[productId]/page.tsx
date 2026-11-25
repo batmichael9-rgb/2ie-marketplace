@@ -59,6 +59,9 @@ export default async function CheckoutPage({
 
   if (!product || !product.isActive) notFound();
 
+  // Boutique fermée : le vendeur suspend les commandes jusqu'à réouverture.
+  if (!product.vendor.isOpen) redirect(`/p/${product.slug}`);
+
   const outOfStock =
     product.stockMode === "OUT_OF_STOCK" ||
     (product.stockMode === "TRACKED" && product.stockQty <= 0);

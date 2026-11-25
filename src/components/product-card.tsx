@@ -19,6 +19,7 @@ export type ProductCardData = {
     slug: string;
     roomNumber: string | null;
     campus: string | null;
+    isOpen: boolean;
   };
   rating: { average: number; count: number };
 };
@@ -42,6 +43,11 @@ export function ProductCard({ product }: { product: ProductCardData }) {
         {product.isReservable ? (
           <span className="badge absolute left-1.5 top-1.5 px-2 py-0.5 text-[10px] bg-white/90 text-teal-800 shadow-sm">
             Réservable
+          </span>
+        ) : null}
+        {!product.vendor.isOpen ? (
+          <span className="badge absolute right-1.5 top-1.5 bg-red-600 px-2 py-0.5 text-[10px] text-white shadow-sm">
+            Fermé actuellement
           </span>
         ) : null}
       </div>

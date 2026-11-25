@@ -9,13 +9,44 @@ import { catalogCategoryOptions } from "@/server/categories";
 
 export const metadata: Metadata = { title: "Nouveau produit" };
 
+type NewProductSearchParams = {
+  erreur?: string;
+  nouveau?: string;
+  categorie?: string;
+  campus?: string;
+  stockMode?: string;
+  stockQty?: string;
+  lowStockThreshold?: string;
+  isReservable?: string;
+  pickupNote?: string;
+  image?: string;
+};
+
 export default async function NewProductPage({
   searchParams,
 }: {
-  searchParams: Promise<{ erreur?: string }>;
+  searchParams: Promise<NewProductSearchParams>;
 }) {
   const { vendor } = await requireVendor("/espace-vendeur/produits/nouveau");
-  const { erreur } = await searchParams;
+  const {
+    erreur,
+    nouveau,
+    categorie,
+    campus,
+    stockMode,
+    stockQty,
+    lowStockThreshold,
+    isReservable,
+    pickupNote,
+    image,
+  } = await searchParams;
+
+  // Reprise du plat précédent (ajout rapide) : réglages conservés, seuls le
+  // nom, le prix et la description repartent vides.
+  const stockModeDefault = ["TRACKED", "UNLIMITED", "OUT_OF_STOCK"].includes(stockMode ?? "")
+    ? (stockMode as string)
+    : "TRACKED";
+  const keptImageUrl = image && /^https?:\/\//.test(image) ? image : "";
 
   const categories = await catalogCategoryOptions();
 
@@ -33,6 +64,13 @@ export default async function NewProductPage({
 
       {erreur ? (
         <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{erreur}</p>
+      ) : null}
+
+      {nouveau ? (
+        <p className="rounded-xl bg-teal-50 px-3 py-2 text-sm text-teal-900">
+          Plat enregistré ✓ Ajoute le suivant : seuls le nom, le prix et la description ont été
+          réinitialisés.{keptImageUrl ? " La photo et la catégorie sont conservées." : " La catégorie et les réglages sont conservés."}
+        </p>
       ) : null}
 
       <form action={createProductAction} className="card space-y-5 p-5">
@@ -72,7 +110,12 @@ export default async function NewProductPage({
             <label className="label" htmlFor="categoryId">
               Catégorie
             </label>
-            <select id="categoryId" name="categoryId" className="input" defaultValue="">
+            <select
+              id="categoryId"
+              name="categoryId"
+              className="input"
+              defaultValue={categorie ?? ""}
+            >
               <option value="">Sans catégorie</option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
@@ -91,7 +134,7 @@ export default async function NewProductPage({
             id="campus"
             name="campus"
             className="input"
-            defaultValue={vendor.campus ?? ""}
+            defaultValue={campus ?? vendor.campus ?? ""}
             required
           >
             <option value="" disabled>
@@ -113,7 +156,12 @@ export default async function NewProductPage({
             <label className="label" htmlFor="stockMode">
               Gestion du stock
             </label>
-            <select id="stockMode" name="stockMode" className="input" defaultValue="TRACKED">
+            <select
+              id="stockMode"
+              name="stockMode"
+              className="input"
+              defaultValue={stockModeDefault}
+            >
               <option value="TRACKED">Stock suivi</option>
               <option value="UNLIMITED">Disponible en continu</option>
               <option value="OUT_OF_STOCK">En rupture</option>
@@ -132,7 +180,7 @@ export default async function NewProductPage({
               inputMode="numeric"
               min={0}
               max={100_000}
-              defaultValue={0}
+              defaultValue={stockQty ?? 0}
             />
           </div>
 
@@ -148,7 +196,7 @@ export default async function NewProductPage({
               inputMode="numeric"
               min={0}
               max={1000}
-              defaultValue={3}
+              defaultValue={lowStockThreshold ?? 3}
             />
           </div>
         </div>
@@ -157,6 +205,21 @@ export default async function NewProductPage({
           <label className="label" htmlFor="image">
             Photo du produit <span className="font-normal text-slate-400">(facultatif)</span>
           </label>
+          {keptImageUrl ? (
+            <div className="mb-2 flex items-center gap-3 rounded-xl bg-slate-50 p-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={keptImageUrl}
+                alt=""
+                className="size-14 rounded-lg border border-slate-200 object-cover"
+              />
+              <div className="min-w-0 text-xs text-slate-600">
+                <p className="font-semibold text-slate-800">Photo conservée pour ce produit</p>
+                <p>Choisis un nouveau fichier si ce plat a une autre photo.</p>
+              </div>
+            </div>
+          ) : null}
+          <input type="hidden" name="existingImageUrl" value={keptImageUrl} />
           <input
             id="image"
             name="image"
@@ -175,6 +238,7 @@ export default async function NewProductPage({
             <input
               type="checkbox"
               name="isReservable"
+              defaultChecked={isReservable === "1"}
               className="mt-1 size-4 accent-teal-700"
             />
             <span>
@@ -194,14 +258,29 @@ export default async function NewProductPage({
               name="pickupNote"
               className="input"
               maxLength={200}
+              defaultValue={pickupNote ?? ""}
               placeholder="Retrait à la chambre B214 entre 19h et 21h"
             />
           </div>
         </div>
 
-        <button type="submit" className="btn-primary w-full">
-          Publier le produit
-        </button>
+        <div className="space-y-2">
+          <button type="submit" name="intent" value="save" className="btn-primary w-full">
+            Publier le produit
+          </button>
+          <button
+            type="submit"
+            name="intent"
+            value="save-and-new"
+            className="btn-secondary w-full"
+          >
+            Enregistrer et ajouter un autre produit
+          </button>
+          <p className="text-center text-xs text-slate-500">
+            Pratique pour saisir tout un menu : la catégorie, la photo et les réglages de stock
+            sont conservés, seuls le nom, le prix et la description sont à ressaisir.
+          </p>
+        </div>
       </form>
     </div>
   );

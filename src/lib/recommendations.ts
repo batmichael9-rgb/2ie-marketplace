@@ -57,7 +57,13 @@ export async function getRecommendedProducts(
         images: { orderBy: { position: "asc" }, take: 1 },
         category: { select: { id: true, slug: true } },
         vendor: {
-          select: { shopName: true, slug: true, roomNumber: true, campus: true },
+          select: {
+            shopName: true,
+            slug: true,
+            roomNumber: true,
+            campus: true,
+            isOpen: true,
+          },
         },
         reviews: { where: { isVisible: true }, select: { rating: true } },
       },
