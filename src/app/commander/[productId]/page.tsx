@@ -6,7 +6,7 @@ import { IdempotencyField } from "@/components/idempotency-field";
 import { StockBadge } from "@/components/stock-badge";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { formatXof } from "@/lib/money";
+import { formatXof, getMinOrderQuantity } from "@/lib/money";
 import { createOrderAction } from "@/server/actions/checkout";
 
 export const metadata: Metadata = { title: "Commander" };
@@ -72,6 +72,9 @@ export default async function CheckoutPage({
 
   const maxQuantity =
     product.stockMode === "TRACKED" ? Math.max(1, Math.min(product.stockQty, 20)) : 20;
+  // Quantité minimum imposée par le seuil de reversement Mobile Money.
+  const minQuantity = getMinOrderQuantity(product.priceXof);
+  const startQuantity = Math.min(minQuantity, maxQuantity);
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
@@ -123,16 +126,24 @@ export default async function CheckoutPage({
               id="quantity"
               name="quantity"
               className="input"
-              defaultValue="1"
+              defaultValue={startQuantity}
               aria-invalid={fieldErrors.quantity ? true : undefined}
               aria-describedby={fieldErrors.quantity ? "quantity-error" : undefined}
             >
-              {Array.from({ length: maxQuantity }, (_, index) => index + 1).map((value) => (
+              {Array.from(
+                { length: Math.max(0, maxQuantity - startQuantity + 1) },
+                (_, index) => startQuantity + index,
+              ).map((value) => (
                 <option key={value} value={value}>
                   {value}
                 </option>
               ))}
             </select>
+            {minQuantity > 1 ? (
+              <p className="mt-1 text-xs font-medium text-teal-800 dark:text-teal-400">
+                Minimum {minQuantity} unités par commande (seuil Mobile Money & livraison campus).
+              </p>
+            ) : null}
             <FieldError id="quantity-error" message={fieldErrors.quantity} />
           </div>
 

@@ -6,7 +6,7 @@ import { after } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { appUrl, generateOrderReference } from "@/lib/domain";
-import { computeFeeBreakdown, formatXof } from "@/lib/money";
+import { computeFeeBreakdown, formatXof, getMinOrderQuantity } from "@/lib/money";
 import { applyPaymentStatus } from "@/lib/payments/apply";
 import { getProvider } from "@/lib/payments";
 import { recordPreferenceSignal } from "@/lib/preferences";
@@ -126,6 +126,18 @@ export async function createOrderAction(formData: FormData) {
   }
 
   const quantity = data.quantity;
+
+  // Plancher de quantité pour les articles à petit prix : sans lui, une vente
+  // pourrait générer un reversement net inférieur au minimum Money Fusion.
+  const minQuantity = getMinOrderQuantity(product.priceXof);
+  if (quantity < minQuantity) {
+    const champs = encodeURIComponent(
+      JSON.stringify({
+        quantity: `Quantité minimum : ${minQuantity} unités pour ce produit (${formatXof(minQuantity * product.priceXof)}).`,
+      }),
+    );
+    redirect(`/commander/${productId}?champs=${champs}`);
+  }
   // Le prix du catalogue est exactement ce que paie l'acheteur. La commission
   // plateforme n'est retenue que sur les paiements en ligne, sur la part vendeur.
   const subtotalXof = product.priceXof * quantity;

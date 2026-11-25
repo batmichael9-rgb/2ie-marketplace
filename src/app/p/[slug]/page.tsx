@@ -11,7 +11,7 @@ import { Stars } from "@/components/stars";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatDate, mobileMoneyLabel } from "@/lib/domain";
-import { formatXof } from "@/lib/money";
+import { formatXof, getMinOrderQuantity } from "@/lib/money";
 import { recordPreferenceSignal } from "@/lib/preferences";
 import { startConversationAction } from "@/server/actions/messages";
 
@@ -93,6 +93,10 @@ export default async function ProductPage({
   const outOfStock =
     product.stockMode === "OUT_OF_STOCK" ||
     (product.stockMode === "TRACKED" && product.stockQty <= 0);
+
+  // Prix libre, mais quantité plancher dès que l'article est sous le seuil de
+  // reversement Mobile Money.
+  const minQuantity = getMinOrderQuantity(product.priceXof);
 
   return (
     <div className="space-y-6">
@@ -213,6 +217,11 @@ export default async function ProductPage({
             <p className="mt-2 text-2xl font-extrabold text-teal-800 dark:text-teal-400">
               {formatXof(product.priceXof)}
             </p>
+            {minQuantity > 1 ? (
+              <p className="mt-1 text-sm font-medium text-teal-900 dark:text-teal-400">
+                Minimum {minQuantity} unités par commande (seuil Mobile Money & livraison campus).
+              </p>
+            ) : null}
 
             <div className="mt-4 space-y-2">
               {outOfStock ? (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { formatPercent, formatXof } from "@/lib/money";
+import { formatPercent, formatXof, getMinOrderQuantity } from "@/lib/money";
 
 /**
  * Champ Prix avec simulateur en direct du net vendeur.
@@ -25,6 +25,9 @@ export function NetVendorPreview({
   const valid = Number.isFinite(price) && price > 0;
   const platformFee = valid ? Math.round(price * (feePercent / 100)) : 0;
   const vendorNet = valid ? price - platformFee : 0;
+  // En dessous du seuil Money Fusion, la quantité minimum est imposée à l'achat.
+  const minQuantity = valid ? getMinOrderQuantity(price) : 1;
+  const belowPayoutMinimum = valid && price < 250;
   const feeLabel = formatPercent(feePercent);
   const netLabel = formatPercent(100 - feePercent);
 
@@ -56,6 +59,13 @@ export function NetVendorPreview({
           ? `Net vendeur (${netLabel} %) : ${formatXof(vendorNet)} (commission ${feeLabel} % : ${formatXof(platformFee)})`
           : `Net vendeur (${netLabel} %) : — FCFA (commission ${feeLabel} % : — FCFA)`}
       </p>
+      {belowPayoutMinimum ? (
+        <p className="mt-1.5 rounded-lg bg-amber-50 px-2 py-1.5 text-xs font-medium text-amber-900">
+          Les transferts Mobile Money exigent un minimum de 200 FCFA nets par versement : une
+          quantité minimum de {minQuantity} unités par commande sera automatiquement appliquée pour
+          garantir ton reversement.
+        </p>
+      ) : null}
     </div>
   );
 }

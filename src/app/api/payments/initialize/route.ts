@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { appUrl, generateOrderReference } from "@/lib/domain";
-import { computeFeeBreakdown } from "@/lib/money";
+import { computeFeeBreakdown, getMinOrderQuantity } from "@/lib/money";
 import { applyPaymentStatus } from "@/lib/payments/apply";
 import { moneyfusionProvider } from "@/lib/payments/moneyfusion";
 import { reserveStock } from "@/lib/stock";
@@ -84,6 +84,13 @@ export async function POST(request: Request) {
   // l'encaissement en ligne reste bloqué.
   if (!product.vendor.orangeMoneyNumber) {
     return jsonError("vendor_payout_not_configured", 409);
+  }
+
+  // Seuil de reversement : sous 250 FCFA, une quantité minimum est imposée
+  // pour que la vente dégage au moins 200 FCFA nets pour le vendeur.
+  const minQuantity = getMinOrderQuantity(product.priceXof);
+  if (data.quantity < minQuantity) {
+    return jsonError("quantity_below_minimum", 400);
   }
 
   const outOfStock =

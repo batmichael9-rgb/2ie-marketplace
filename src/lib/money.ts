@@ -50,3 +50,25 @@ export function computeFeeBreakdown(grossAmount: number): {
 export function computeFees(subtotalXof: number): number {
   return computeFeeBreakdown(subtotalXof).platformFee;
 }
+
+/**
+ * Montant minimum d'une ligne de commande, en francs CFA.
+ *
+ * Money Fusion exige un net d'au moins 200 FCFA par versement. Avec la
+ * commission plateforme (5 % par défaut), il faut donc au moins 250 FCFA de
+ * marchandise pour que le vendeur reçoive 200 FCFA nets, même quand plusieurs
+ * vendeurs se partagent le panier (chaque reversement est distinct).
+ */
+export const MIN_ORDER_AMOUNT_XOF = 250;
+
+/**
+ * Quantité minimum à commander pour un prix unitaire donné.
+ *
+ * Un article à 100 FCFA impose 3 unités (300 FCFA), un article à 200 FCFA en
+ * impose 2 (400 FCFA) ; à partir de 250 FCFA, une seule unité suffit. Le
+ * vendeur reste libre de fixer son prix, la quantité est ajustée d'elle-même.
+ */
+export function getMinOrderQuantity(unitPrice: number): number {
+  if (!Number.isFinite(unitPrice) || unitPrice <= 0) return 1;
+  return Math.max(1, Math.ceil(MIN_ORDER_AMOUNT_XOF / unitPrice));
+}
