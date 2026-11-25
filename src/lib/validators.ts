@@ -146,7 +146,7 @@ export const vendorProfileSchema = z.object({
   campus: campusSchema,
 });
 
-/** Formulaire « Mes comptes de versement » (réception des 95 % vendeur). */
+/** Formulaire « Mes comptes de versement » (réception de la part nette vendeur). */
 export const payoutAccountsSchema = z.object({
   orangeMoneyNumber: requiredBfPhone,
   moovMoneyNumber: optionalBfPhone,

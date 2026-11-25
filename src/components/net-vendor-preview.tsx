@@ -1,28 +1,32 @@
 "use client";
 
 import { useState } from "react";
-import { formatXof } from "@/lib/money";
+import { formatPercent, formatXof } from "@/lib/money";
 
 /**
  * Champ Prix avec simulateur en direct du net vendeur.
  *
- * Le prix saisi est le prix payé par l'acheteur. La commission de 5 % est
- * retenue sur la part vendeur : on affiche donc immédiatement le net (95 %) et
- * la commission, pour que le vendeur ajuste son prix en connaissance de cause.
+ * Le prix saisi est le prix payé par l'acheteur. La commission configurée est
+ * retenue sur la part vendeur : on affiche donc immédiatement le net et la
+ * commission, pour que le vendeur ajuste son prix en connaissance de cause.
  */
 export function NetVendorPreview({
   defaultValue,
+  feePercent,
   id = "priceXof",
 }: {
   defaultValue?: number;
+  feePercent: number;
   id?: string;
 }) {
   const [value, setValue] = useState(defaultValue ? String(defaultValue) : "");
 
   const price = Number.parseInt(value, 10);
   const valid = Number.isFinite(price) && price > 0;
-  const platformFee = valid ? Math.round(price * 0.05) : 0;
+  const platformFee = valid ? Math.round(price * (feePercent / 100)) : 0;
   const vendorNet = valid ? price - platformFee : 0;
+  const feeLabel = formatPercent(feePercent);
+  const netLabel = formatPercent(100 - feePercent);
 
   return (
     <div>
@@ -49,8 +53,8 @@ export function NetVendorPreview({
         aria-live="polite"
       >
         {valid
-          ? `Net vendeur (95 %) : ${formatXof(vendorNet)} (commission 5 % : ${formatXof(platformFee)})`
-          : "Net vendeur (95 %) : — FCFA (commission 5 % : — FCFA)"}
+          ? `Net vendeur (${netLabel} %) : ${formatXof(vendorNet)} (commission ${feeLabel} % : ${formatXof(platformFee)})`
+          : `Net vendeur (${netLabel} %) : — FCFA (commission ${feeLabel} % : — FCFA)`}
       </p>
     </div>
   );

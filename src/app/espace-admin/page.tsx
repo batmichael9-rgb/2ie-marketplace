@@ -8,7 +8,12 @@ import {
   formatDate,
   payoutMethodLabel,
 } from "@/lib/domain";
-import { formatXof } from "@/lib/money";
+import {
+  PLATFORM_FEE_PERCENT,
+  VENDOR_NET_PERCENT,
+  formatPercent,
+  formatXof,
+} from "@/lib/money";
 import { vendorPayoutAccount } from "@/lib/payments/payout";
 import { triggerPayoutAction } from "@/server/actions/payouts";
 
@@ -18,7 +23,8 @@ export const metadata: Metadata = { title: "Espace administrateur" };
  * Suivi des reversements vendeurs — rôle purement informatif.
  *
  * Le flux normal est 100 % automatique : confirmation de réception par
- * l'acheteur (ou auto-release 48 h) → virement des 95 % → webhook Money Fusion.
+ * l'acheteur (ou auto-release 48 h) → virement de la part nette → webhook
+ * Money Fusion.
  * L'administrateur n'intervient que pour relancer un virement en échec
  * (`FAILED`), jamais pour le déclencher.
  */
@@ -29,6 +35,8 @@ export default async function AdminPayoutsPage({
 }) {
   await requireAdmin();
   const params = await searchParams;
+  const feeLabel = formatPercent(PLATFORM_FEE_PERCENT);
+  const netLabel = formatPercent(VENDOR_NET_PERCENT);
 
   const orders = await db.order.findMany({
     where: {
@@ -78,7 +86,7 @@ export default async function AdminPayoutsPage({
           Suivi des commissions et reversements
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-teal-50">
-          Les 95 % nets sont reversés automatiquement à la confirmation de réception par
+          Les {netLabel} % nets sont reversés automatiquement à la confirmation de réception par
           l&apos;acheteur, ou 48 h après la livraison. Aucune action administrative n&apos;est
           nécessaire : cet écran ne sert qu&apos;au suivi et à la relance d&apos;un virement en
           échec.
@@ -90,11 +98,11 @@ export default async function AdminPayoutsPage({
             <dd className="text-lg font-bold">{formatXof(totals.gross)}</dd>
           </div>
           <div className="rounded-2xl bg-white/10 px-3 py-2">
-            <dt className="text-xs text-teal-100">Commission 5 %</dt>
+            <dt className="text-xs text-teal-100">Commission {feeLabel} %</dt>
             <dd className="text-lg font-bold">{formatXof(totals.commission)}</dd>
           </div>
           <div className="rounded-2xl bg-white/10 px-3 py-2">
-            <dt className="text-xs text-teal-100">Net vendeur (95 %)</dt>
+            <dt className="text-xs text-teal-100">Net vendeur ({netLabel} %)</dt>
             <dd className="text-lg font-bold">{formatXof(totals.net)}</dd>
           </div>
           <div className="rounded-2xl bg-white/10 px-3 py-2">
@@ -132,8 +140,8 @@ export default async function AdminPayoutsPage({
                 <th className="px-4 py-3 font-semibold">Commande</th>
                 <th className="px-4 py-3 font-semibold">Vendeur</th>
                 <th className="px-4 py-3 font-semibold">Brut</th>
-                <th className="px-4 py-3 font-semibold">Commission 5 %</th>
-                <th className="px-4 py-3 font-semibold">Net vendeur (95 %)</th>
+                <th className="px-4 py-3 font-semibold">Commission {feeLabel} %</th>
+                <th className="px-4 py-3 font-semibold">Net vendeur ({netLabel} %)</th>
                 <th className="px-4 py-3 font-semibold">Compte</th>
                 <th className="px-4 py-3 font-semibold">Statut</th>
                 <th className="px-4 py-3 font-semibold">Action</th>
@@ -188,7 +196,9 @@ export default async function AdminPayoutsPage({
                               : "badge bg-amber-50 text-amber-800"
                         }
                       >
-                        {PAYOUT_STATUS_LABELS[order.payoutStatus] ?? order.payoutStatus}
+                        {order.payoutStatus === "PAID"
+                          ? `Reversé (${netLabel} %)`
+                          : (PAYOUT_STATUS_LABELS[order.payoutStatus] ?? order.payoutStatus)}
                       </span>
                       {order.payoutStatus === "FAILED" && order.payoutError ? (
                         <p className="mt-1 max-w-[260px] text-xs text-red-700">

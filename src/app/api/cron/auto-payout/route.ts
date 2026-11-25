@@ -5,7 +5,7 @@ import { autoReleaseDeliveredOrders } from "@/lib/payments/auto-release";
  * Cron quotidien Vercel : GET /api/cron/auto-payout
  *
  * Termine les commandes livrées depuis 48 h sans confirmation de l'acheteur et
- * déclenche les reversements de 95 % correspondants. Aucune authentification
+ * déclenche les reversements de la part nette correspondants. Aucune authentification
  * administrateur : c'est le flux normal autonome.
  *
  * Si `CRON_SECRET` est défini, l'en-tête `Authorization: Bearer ...` envoyé par

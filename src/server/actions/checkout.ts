@@ -127,7 +127,7 @@ export async function createOrderAction(formData: FormData) {
 
   const quantity = data.quantity;
   // Le prix du catalogue est exactement ce que paie l'acheteur. La commission
-  // de 5 % n'est retenue que sur les paiements en ligne, sur la part vendeur.
+  // plateforme n'est retenue que sur les paiements en ligne, sur la part vendeur.
   const subtotalXof = product.priceXof * quantity;
   const isOnline = provider.id !== "CASH";
   const { platformFee, vendorNetAmount } = computeFeeBreakdown(subtotalXof);

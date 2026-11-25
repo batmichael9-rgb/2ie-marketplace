@@ -75,7 +75,7 @@ model VendorProfile {
   campus      String? // Site de Ouagadougou | Site de Kamboinsé
   momoNumber  String? // ancien champ, conservé pour compatibilité (miroir du compte préféré)
   momoOperator String? // ORANGE_MONEY | MOOV_MONEY | WAVE
-  // Comptes de réception des reversements (part vendeur nette de 95 %).
+  // Comptes de réception des reversements (part vendeur nette de commission).
   // Le numéro Orange Money est obligatoire pour activer la boutique et
   // publier des articles ; les autres moyens sont facultatifs.
   orangeMoneyNumber      String   @default("") // format +226XXXXXXXX
@@ -201,8 +201,8 @@ model Order {
   feesXof       Int      @default(0)
   totalXof      Int
   // Montants du paiement en ligne : le prix payé par l'acheteur est exactement
-  // le prix du catalogue (grossAmount). La commission plateforme de 5 % est
-  // retenue sur ce montant, le solde (95 %) revient au vendeur.
+  // le prix du catalogue (grossAmount). La commission plateforme (taux
+  // PLATFORM_FEE_PERCENT) est retenue sur ce montant, le solde revient au vendeur.
   grossAmount    Int    @default(0)
   platformFee    Int    @default(0)
   vendorNetAmount Int   @default(0)
@@ -224,7 +224,7 @@ model Order {
   expiresAt     DateTime?
   confirmedAt   DateTime?
   completedAt   DateTime?
-  // Horodatage du passage en « Livrée » : l'auto-release des 95 % se déclenche
+  // Horodatage du passage en « Livrée » : l'auto-release de la part nette se déclenche
   // 48 h plus tard si l'acheteur n'a pas confirmé la réception.
   deliveredAt   DateTime?
   createdAt     DateTime @default(now())

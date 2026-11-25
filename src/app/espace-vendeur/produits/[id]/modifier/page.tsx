@@ -5,6 +5,7 @@ import { NetVendorPreview } from "@/components/net-vendor-preview";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { CAMPUSES } from "@/lib/domain";
+import { PLATFORM_FEE_PERCENT } from "@/lib/money";
 import { updateProductAction } from "@/server/actions/vendor";
 import { catalogCategoryOptions } from "@/server/categories";
 
@@ -106,7 +107,10 @@ export default async function EditProductPage({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <NetVendorPreview defaultValue={product.priceXof} />
+          <NetVendorPreview
+            defaultValue={product.priceXof}
+            feePercent={PLATFORM_FEE_PERCENT}
+          />
 
           <div>
             <label className="label" htmlFor="categoryId">

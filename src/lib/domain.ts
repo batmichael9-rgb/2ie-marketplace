@@ -235,7 +235,7 @@ export function mobileMoneyLabel(provider: string | null | undefined): string | 
   return MOBILE_MONEY_LABELS[provider as MobileMoneyProvider] ?? provider;
 }
 
-/** Moyens de réception des reversements vendeur (part nette de 95 %). */
+/** Moyens de réception des reversements vendeur (part nette après commission). */
 export const PAYOUT_METHODS = ["ORANGE_MONEY", "MOOV_MONEY", "WAVE", "CARD"] as const;
 export type PayoutMethod = (typeof PAYOUT_METHODS)[number];
 
@@ -251,12 +251,12 @@ export function payoutMethodLabel(method: string | null | undefined): string {
   return PAYOUT_METHOD_LABELS[method as PayoutMethod] ?? method;
 }
 
-/** Statuts du virement des 95 % (Order.payoutStatus). */
+/** Statuts du virement de la part nette (Order.payoutStatus). */
 export const PAYOUT_STATUS_LABELS: Record<string, string> = {
   PENDING: "En attente",
   READY_FOR_PAYOUT: "Prêt à reverser",
   PROCESSING: "Reversement en cours",
-  PAID: "Reversé (95 %)",
+  PAID: "Reversé",
   FAILED: "Reversement échoué",
 };
 

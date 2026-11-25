@@ -12,7 +12,7 @@ import {
   formatDate,
   type OrderStatus,
 } from "@/lib/domain";
-import { formatXof } from "@/lib/money";
+import { VENDOR_NET_PERCENT, formatPercent, formatXof } from "@/lib/money";
 import { getProvider } from "@/lib/payments";
 import { cancelOrderAction, confirmReceiptAction } from "@/server/actions/orders";
 import { startOrderConversationAction } from "@/server/actions/messages";
@@ -37,6 +37,7 @@ export default async function OrderPage({
 }) {
   const { reference } = await params;
   const { annulee, erreur, reception } = await searchParams;
+  const netLabel = formatPercent(VENDOR_NET_PERCENT);
 
   const order = await db.order.findUnique({
     where: { reference },
@@ -102,8 +103,8 @@ export default async function OrderPage({
 
       {reception === "ok" ? (
         <p className="rounded-xl bg-teal-50 px-3 py-2 text-sm text-teal-900">
-          Réception confirmée. La commande est terminée et les 95 % nets du vendeur sont en cours
-          de reversement automatique.
+          Réception confirmée. La commande est terminée et les {netLabel} % nets du vendeur
+          sont en cours de reversement automatique.
         </p>
       ) : null}
 
@@ -244,9 +245,9 @@ export default async function OrderPage({
           <div>
             <h2 className="font-semibold">Tu as bien reçu ta commande ?</h2>
             <p className="mt-0.5 text-xs text-slate-600">
-              Confirme la réception pour clôturer la commande. Le vendeur reçoit immédiatement ses
-              95 % nets. Sans action de ta part, la libération est automatique 48 h après la
-              livraison.
+              Confirme la réception pour clôturer la commande. Le vendeur reçoit immédiatement sa
+              part nette ({netLabel} %). Sans action de ta part, la libération est automatique
+              48 h après la livraison.
             </p>
           </div>
           <form action={confirmReceiptAction}>

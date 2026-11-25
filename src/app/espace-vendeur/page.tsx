@@ -14,7 +14,12 @@ import {
   payoutMethodLabel,
   type OrderStatus,
 } from "@/lib/domain";
-import { formatXof } from "@/lib/money";
+import {
+  PLATFORM_FEE_PERCENT,
+  VENDOR_NET_PERCENT,
+  formatPercent,
+  formatXof,
+} from "@/lib/money";
 import { autoReleaseDeliveredOrders } from "@/lib/payments/auto-release";
 import { StockBadge } from "@/components/stock-badge";
 import {
@@ -52,14 +57,16 @@ export default async function VendorDashboardPage({
 }) {
   const { vendor } = await requireVendor();
   const params = await searchParams;
+  const feeLabel = formatPercent(PLATFORM_FEE_PERCENT);
+  const netLabel = formatPercent(VENDOR_NET_PERCENT);
 
   // Déclenchement paresseux de l'auto-release 48 h : le vendeur n'a pas à
-  // attendre le cron quotidien pour recevoir ses 95 %.
+  // attendre le cron quotidien pour recevoir sa part nette.
   await autoReleaseDeliveredOrders().catch((error) => {
     console.error("Auto-release des reversements :", error);
   });
 
-  // Compte qui recevra effectivement les 95 % nets, selon le mode préféré.
+  // Compte qui recevra effectivement la part nette, selon le mode préféré.
   const payoutAccount =
     vendor.preferredPayoutMethod === "MOOV_MONEY"
       ? vendor.moovMoneyNumber
@@ -108,7 +115,7 @@ export default async function VendorDashboardPage({
   ]);
 
   // Ventes en ligne effectivement payées : seules celles-ci portent une
-  // commission de 5 % et un reversement à effectuer.
+  // commission plateforme et un reversement à effectuer.
   const onlinePaidOrders = orders.filter(
     (order) => order.paymentStatus === "PAID" && order.payments[0]?.provider !== "CASH",
   );
@@ -151,7 +158,7 @@ export default async function VendorDashboardPage({
     params.partage ? "Lien de partage créé, prêt à envoyer sur WhatsApp." : null,
     params.boutique === "maj" ? "Informations de la boutique mises à jour." : null,
     params.versement === "maj"
-      ? "Comptes de versement enregistrés : tes 95 % seront reversés sur le compte choisi."
+      ? `Comptes de versement enregistrés : tes ${netLabel} % seront reversés sur le compte choisi.`
       : null,
   ].filter(Boolean) as string[];
 
@@ -200,7 +207,7 @@ export default async function VendorDashboardPage({
 
         <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-2xl bg-white/10 px-3 py-2">
-            <dt className="text-xs text-teal-100">Net encaissé (95 %)</dt>
+            <dt className="text-xs text-teal-100">Net encaissé ({netLabel} %)</dt>
             <dd className="text-lg font-bold">{formatXof(revenue)}</dd>
           </div>
           <div className="rounded-2xl bg-white/10 px-3 py-2">
@@ -226,22 +233,22 @@ export default async function VendorDashboardPage({
           <a href="#versements" className="font-semibold underline">
             Mes comptes de versement
           </a>{" "}
-          : c&apos;est le compte qui recevra tes 95 % nets.
+          : c&apos;est le compte qui recevra tes {netLabel} % nets.
         </p>
       ) : null}
 
       {/* ------------------------------------------------------------------ */}
-      {/* Comptes de versement (réception des 95 %)                          */}
+      {/* Comptes de versement (réception de la part nette)                 */}
       {/* ------------------------------------------------------------------ */}
       <section id="versements" className="card p-5">
         <div>
           <h2 className="text-xl font-bold tracking-tight">
-            Mes comptes de versement (Réception de vos 95 %)
+            Mes comptes de versement (Réception de vos {netLabel} %)
           </h2>
           <p className="mt-1 text-sm text-slate-600">
-            Chaque vente en ligne est encaissée par la plateforme, puis 95 % nets te sont
-            reversés sur le compte choisi ci-dessous. La commission plateforme de 5 % est
-            déjà déduite.
+            Chaque vente en ligne est encaissée par la plateforme, puis {netLabel} % nets te
+            sont reversés sur le compte choisi ci-dessous. La commission plateforme de{" "}
+            {feeLabel} % est déjà déduite.
           </p>
         </div>
 
@@ -343,7 +350,8 @@ export default async function VendorDashboardPage({
               <option value="CARD">Carte bancaire / RIB</option>
             </select>
             <p className="mt-1 text-xs text-slate-500">
-              Les 95 % nets seront reversés sur ce compte. Il doit être renseigné ci-dessus.
+              Les {netLabel} % nets seront reversés sur ce compte. Il doit être renseigné
+              ci-dessus.
             </p>
           </div>
 
@@ -360,18 +368,20 @@ export default async function VendorDashboardPage({
         <div>
           <h2 className="text-xl font-bold tracking-tight">Finances</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Commission plateforme de 5 % retenue sur les ventes payées en ligne.
+            Commission plateforme de {feeLabel} % retenue sur les ventes payées en ligne.
           </p>
         </div>
 
         <dl className="grid gap-3 sm:grid-cols-3">
           <div className="card p-4">
-            <dt className="text-xs font-medium text-slate-500">Total encaissé (Net 95 %)</dt>
+            <dt className="text-xs font-medium text-slate-500">
+              Total encaissé (Net {netLabel} %)
+            </dt>
             <dd className="mt-1 text-xl font-bold text-teal-800">
               {formatXof(payoutTotals.net)}
             </dd>
             <p className="mt-1 text-xs text-slate-500">
-              Commission 5 % retenue : {formatXof(payoutTotals.commission)}
+              Commission {feeLabel} % retenue : {formatXof(payoutTotals.commission)}
             </p>
           </div>
           <div className="card p-4">
@@ -405,7 +415,7 @@ export default async function VendorDashboardPage({
                 <tr>
                   <th className="px-4 py-2.5 font-semibold">Commande</th>
                   <th className="px-4 py-2.5 font-semibold">Prix payé</th>
-                  <th className="px-4 py-2.5 font-semibold">Commission 5 %</th>
+                  <th className="px-4 py-2.5 font-semibold">Commission {feeLabel} %</th>
                   <th className="px-4 py-2.5 font-semibold">Net vendeur</th>
                   <th className="px-4 py-2.5 font-semibold">Compte de versement</th>
                   <th className="px-4 py-2.5 font-semibold">Reversement</th>
@@ -439,7 +449,7 @@ export default async function VendorDashboardPage({
                         title={order.payoutError ?? undefined}
                       >
                         {order.payoutStatus === "PAID"
-                          ? "Reversé (95 %)"
+                          ? `Reversé (${netLabel} %)`
                           : order.payoutStatus === "PROCESSING"
                             ? "Reversement en cours"
                             : order.payoutStatus === "FAILED"
@@ -631,7 +641,9 @@ export default async function VendorDashboardPage({
                         <span className="badge bg-teal-50 text-teal-700">Réservation</span>
                       ) : null}
                       {isOnlinePaid && order.payoutStatus === "PAID" ? (
-                        <span className="badge bg-teal-50 text-teal-800">Reversé (95 %)</span>
+                        <span className="badge bg-teal-50 text-teal-800">
+                          Reversé ({netLabel} %)
+                        </span>
                       ) : null}
                       {isOnlinePaid && order.payoutStatus === "PROCESSING" ? (
                         <span className="badge bg-amber-50 text-amber-800">

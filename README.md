@@ -9,7 +9,7 @@ Marketplace interne des étudiants de l'Institut 2iE à Ouagadougou. Application
 - **Base de données** : PostgreSQL (Supabase)
 - **ORM** : Prisma
 - **Authentification** : Session JWT avec bcrypt
-- **Paiement** : Money Fusion (Orange Money, Moov Money, Wave, carte bancaire) — Payin acheteur + Payout vendeur 95 %
+- **Paiement** : Money Fusion (Orange Money, Moov Money, Wave, carte bancaire) — Payin acheteur + Payout vendeur (100 - commission)
 - **Styling** : Tailwind CSS
 - **Validation** : Zod
 
@@ -60,8 +60,8 @@ MONEYFUSION_PRIVATE_KEY=""
 # Proxy sortant à IP fixe (Fixie sur Vercel)
 FIXIE_URL=""
 
-# Commission plateforme en points de base (100 = 1 %, 500 = 5 %)
-PLATFORM_FEE_BPS="500"
+# Commission plateforme en pourcentage (5 = 5 % ; absent ou nul = 5 %)
+PLATFORM_FEE_PERCENT="5"
 
 # Photos produits (Supabase Storage)
 SUPABASE_URL="https://<project-ref>.supabase.co"
@@ -178,7 +178,7 @@ Pour activer les paiements en ligne et les reversements vendeur :
 3. Définir `FIXIE_URL` en production : tous les appels sortent par ces IP fixes, à autoriser côté Money Fusion
 4. Renseigner les URL de notification `https://<votre-domaine>/api/payments/webhook` (Payin) et `https://<votre-domaine>/api/payouts/webhook` (Payout)
 5. Exécuter les migrations `prisma/migrations/20261125120000_moneyfusion_v1/migration.sql` puis `prisma/migrations/20261125160000_auto_payout/migration.sql` dans l'éditeur SQL Supabase
-6. (Recommandé) Définir `CRON_SECRET` : le cron quotidien `/api/cron/auto-payout` (configuré dans `vercel.json`) libère automatiquement les 95 % 48 h après une livraison non confirmée
+6. (Recommandé) Définir `CRON_SECRET` : le cron quotidien `/api/cron/auto-payout` (configuré dans `vercel.json`) libère automatiquement la part nette du vendeur 48 h après une livraison non confirmée
 
 Le flux de reversement est autonome : confirmation de réception par l'acheteur → virement immédiat ; à défaut, le cron et les chargements de tableau de bord déclenchent l'auto-release après 48 h. `/espace-admin` ne sert qu'au suivi des commissions et à la relance d'un virement en échec.
 

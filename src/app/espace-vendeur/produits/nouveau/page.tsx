@@ -3,6 +3,7 @@ import Link from "next/link";
 import { NetVendorPreview } from "@/components/net-vendor-preview";
 import { requireVendor } from "@/lib/auth";
 import { CAMPUSES } from "@/lib/domain";
+import { PLATFORM_FEE_PERCENT } from "@/lib/money";
 import { createProductAction } from "@/server/actions/vendor";
 import { catalogCategoryOptions } from "@/server/categories";
 
@@ -65,7 +66,7 @@ export default async function NewProductPage({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <NetVendorPreview />
+          <NetVendorPreview feePercent={PLATFORM_FEE_PERCENT} />
 
           <div>
             <label className="label" htmlFor="categoryId">

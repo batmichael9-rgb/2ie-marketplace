@@ -42,7 +42,7 @@ export default async function MyOrdersPage({
   const user = await requireUser("/mes-commandes");
   const { erreur } = await searchParams;
 
-  // Auto-release de secours : libère les 95 % 48 h après la livraison si
+  // Auto-release de secours : libère la part nette 48 h après la livraison si
   // l'acheteur a oublié de confirmer la réception.
   await autoReleaseDeliveredOrders().catch((error) => {
     console.error("Auto-release des reversements :", error);

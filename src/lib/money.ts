@@ -9,25 +9,30 @@ export function formatXof(amount: number): string {
   return `${new Intl.NumberFormat("fr-FR").format(Math.round(amount))} FCFA`;
 }
 
+/** Affiche un pourcentage sans zéro inutile : 5, 5,5, 7,25. */
+export function formatPercent(value: number): string {
+  return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(value);
+}
+
 /**
- * Commission plateforme retenue sur chaque vente payée en ligne : 5 %.
+ * Commission plateforme retenue sur chaque vente payée en ligne.
  *
  * Le prix affiché reste le prix payé par l'acheteur. La commission est déduite
- * de la part du vendeur (95 % reversés), jamais ajoutée au prix client.
+ * de la part du vendeur (100 - taux reversés), jamais ajoutée au prix client.
  *
- * Taux piloté par PLATFORM_FEE_BPS (500 pb = 5 %). Une valeur absente, invalide
- * ou nulle retombe sur 500 pb pour que la commission reste toujours de 5 %.
+ * Taux piloté par PLATFORM_FEE_PERCENT ; absent ou nul, il retombe sur 5 %.
  */
-const configuredBps = Number(process.env.PLATFORM_FEE_BPS ?? 500);
+export const PLATFORM_FEE_PERCENT =
+  Number(process.env.PLATFORM_FEE_PERCENT) || 5;
 
-/** Commission plateforme, en points de base (100 pb = 1 %). */
-export const PLATFORM_FEE_BPS =
-  Number.isFinite(configuredBps) && configuredBps > 0 ? configuredBps : 500;
+/** Part nette reversée au vendeur, en pourcentage (100 - commission). */
+export const VENDOR_NET_PERCENT = 100 - PLATFORM_FEE_PERCENT;
 
-export const PLATFORM_COMMISSION_RATE = PLATFORM_FEE_BPS / 10_000;
+/** Taux de commission sous forme décimale (5 % → 0,05). */
+export const PLATFORM_COMMISSION_RATE = PLATFORM_FEE_PERCENT / 100;
 
 /**
- * Décompose un montant payé en ligne en commission (5 %) et net vendeur (95 %).
+ * Décompose un montant payé en ligne en commission et net vendeur.
  * Arrondi à l'entier de franc CFA, le net étant calculé par différence pour que
  * commission + net = montant payé, au franc près.
  */
@@ -41,11 +46,7 @@ export function computeFeeBreakdown(grossAmount: number): {
   return { grossAmount: gross, platformFee, vendorNetAmount: gross - platformFee };
 }
 
-/**
- * Calcule la commission à partir de PLATFORM_FEE_BPS (500 pb = 5 %).
- * Conservé pour les appels historiques ; computeFeeBreakdown donne le détail
- * commission + net vendeur.
- */
+/** Calcule la commission appliquée à un montant payé en ligne. */
 export function computeFees(subtotalXof: number): number {
-  return Math.round((subtotalXof * PLATFORM_FEE_BPS) / 10_000);
+  return computeFeeBreakdown(subtotalXof).platformFee;
 }

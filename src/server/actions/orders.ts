@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { canBuyerCancelOrder } from "@/lib/domain";
+import { VENDOR_NET_PERCENT, formatPercent } from "@/lib/money";
 import { completeAndPayoutOrder } from "@/lib/payments/auto-release";
 import { notifyUserSafely } from "@/lib/push";
 import { restockOrder } from "@/lib/stock";
@@ -84,7 +85,8 @@ export async function cancelOrderAction(formData: FormData) {
 
 /**
  * Confirmation de réception par l'acheteur : la commande passe à « Terminée »
- * et le reversement des 95 % est déclenché immédiatement, sans administrateur.
+ * et le reversement de la part nette est déclenché immédiatement, sans
+ * administrateur.
  */
 export async function confirmReceiptAction(formData: FormData) {
   const user = await requireUser("/mes-commandes");
@@ -126,7 +128,9 @@ export async function confirmReceiptAction(formData: FormData) {
 
     await notifyUserSafely(order.vendor.userId, {
       title: "✅ Réception confirmée",
-      body: `Commande ${order.reference} terminée : les 95 % nets sont en cours de reversement.`,
+      body: `Commande ${order.reference} terminée : les ${formatPercent(
+        VENDOR_NET_PERCENT,
+      )} % nets sont en cours de reversement.`,
       url: "/espace-vendeur#finances",
       tag: `payout-${order.id}`,
     }).catch(() => undefined);

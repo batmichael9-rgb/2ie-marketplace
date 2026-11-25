@@ -1,9 +1,11 @@
 import { db } from "@/lib/db";
 import { appUrl, payoutMethodLabel } from "@/lib/domain";
+import { computeFeeBreakdown } from "@/lib/money";
 import { MONEYFUSION_BASE_URL, moneyFusionFetch } from "./moneyfusion";
 
 /**
- * Reversement vendeur (Payout) : 95 % nets du montant payé en ligne.
+ * Reversement vendeur (Payout) : part nette du montant payé en ligne
+ * (100 - PLATFORM_FEE_PERCENT %).
  *
  * Le montant est recalculé à partir de la commande (jamais fourni par le
  * client), puis envoyé à Money Fusion. Le token du virement est conservé sur la
@@ -170,7 +172,7 @@ export interface PayoutResult {
 }
 
 /**
- * Déclenche le virement des 95 % nets au vendeur pour une commande payée en
+ * Déclenche le virement de la part nette au vendeur pour une commande payée en
  * ligne. Idempotent et sûr en concurrence : la commande est réservée
  * (`PROCESSING`) atomiquement avant l'appel réseau, donc deux confirmations
  * simultanées ne peuvent pas envoyer deux virements.
@@ -251,8 +253,11 @@ export async function triggerVendorPayout(orderId: string): Promise<PayoutResult
     return { ok: false, token: null, message, raw: { phone: account.phone } };
   }
 
+  // Le net enregistré à la commande prime (taux historique) ; sinon on applique
+  // le taux courant : 100 - PLATFORM_FEE_PERCENT %.
+  const gross = order.grossAmount || order.totalXof;
   const amount = Math.floor(
-    order.vendorNetAmount || Math.max(0, (order.grossAmount || order.totalXof) - order.platformFee),
+    order.vendorNetAmount || computeFeeBreakdown(gross).vendorNetAmount,
   );
 
   if (amount <= 0) {

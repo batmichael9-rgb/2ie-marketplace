@@ -13,8 +13,8 @@ import { reserveStock } from "@/lib/stock";
  * Encaissement acheteur (Payin) — POST /api/payments/initialize
  *
  * Le prix est relu en base : le client ne peut jamais imposer `totalPrice`.
- * L'acheteur paie exactement le prix du catalogue ; la commission de 5 % est
- * déduite de la part vendeur (95 % nets). Le `tokenPay` renvoyé par Money Fusion
+ * L'acheteur paie exactement le prix du catalogue ; la commission configurée est
+ * déduite de la part vendeur (part nette). Le `tokenPay` renvoyé par Money Fusion
  * est conservé sur la commande (clé d'idempotence des webhooks) et l'acheteur
  * est redirigé vers l'URL de paiement.
  */
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     return jsonError("product_unavailable", 404);
   }
 
-  // Sans compte de versement, le vendeur ne peut pas recevoir ses 95 % :
+  // Sans compte de versement, le vendeur ne peut pas recevoir sa part nette :
   // l'encaissement en ligne reste bloqué.
   if (!product.vendor.orangeMoneyNumber) {
     return jsonError("vendor_payout_not_configured", 409);

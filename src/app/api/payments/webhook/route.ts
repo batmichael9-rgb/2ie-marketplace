@@ -166,7 +166,7 @@ export async function POST(request: Request) {
   });
 
   if (outcome === "PAID") {
-    // Commission 5 % / net vendeur 95 % : recalculés depuis le prix réellement
+    // Commission plateforme / net vendeur : recalculés depuis le prix réellement
     // encaissé, jamais depuis le corps de la notification.
     const gross = order.grossAmount || order.totalXof;
     const { platformFee, vendorNetAmount } = computeFeeBreakdown(gross);

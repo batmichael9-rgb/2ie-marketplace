@@ -64,7 +64,7 @@ export async function updateVendorProfileAction(formData: FormData) {
 }
 
 /**
- * Comptes de réception des 95 % (reversements vendeur).
+ * Comptes de réception de la part nette (reversements vendeur).
  *
  * Le numéro Orange Money est obligatoire et normalisé en +226XXXXXXXX ; il
  * conditionne la publication d'articles. Le mode préféré doit correspondre à un
@@ -145,7 +145,7 @@ function productErrorUrl(message: string): string {
 export async function createProductAction(formData: FormData) {
   const { vendor } = await requireVendor("/espace-vendeur/produits/nouveau");
 
-  // Sans numéro Orange Money de réception, les 95 % ne peuvent pas être
+  // Sans numéro Orange Money de réception, la part nette ne peut pas être
   // reversés : la publication d'articles reste bloquée.
   if (!vendor.orangeMoneyNumber) {
     redirect(
@@ -491,7 +491,7 @@ export async function updateOrderAction(formData: FormData) {
     await db.$transaction(async (tx) => {
       // Paiement en ligne : « Livrée » attend la confirmation de réception par
       // l'acheteur (ou l'auto-release 48 h). C'est cette confirmation qui
-      // déclenche le reversement des 95 %, jamais le vendeur seul.
+      // déclenche le reversement de la part nette, jamais le vendeur seul.
       // Paiement à la remise : la livraison vaut encaissement et clôture.
       const guard = await tx.order.updateMany({
         where: {

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PlatformFeeInfo } from "@/components/platform-fee-info";
 import { getCurrentUser } from "@/lib/auth";
+import { PLATFORM_FEE_PERCENT, VENDOR_NET_PERCENT, formatPercent } from "@/lib/money";
 import {
   requestSignupCodeAction,
   verifySignupCodeAction,
@@ -31,6 +32,8 @@ export default async function RegisterPage({
 
   const params = await searchParams;
   const isVendor = params.vendeur === "1";
+  const feeLabel = formatPercent(PLATFORM_FEE_PERCENT);
+  const netLabel = formatPercent(VENDOR_NET_PERCENT);
   const email = params.email?.trim().toLowerCase() ?? "";
   const next = params.suivant ?? "";
   const onCodeStep = params.etape === "code" && email.length > 0;
@@ -249,8 +252,9 @@ export default async function RegisterPage({
                       required
                     />
                     <span>
-                      J&apos;accepte la commission plateforme de 5 % sur chaque vente payée en
-                       ligne et le reversement des 95 % restants sur mon numéro Mobile Money.
+                      J&apos;accepte la commission plateforme de {feeLabel} % sur chaque vente
+                      payée en ligne et le reversement des {netLabel} % restants sur mon numéro
+                      Mobile Money.
                     </span>
                   </label>
                 </>

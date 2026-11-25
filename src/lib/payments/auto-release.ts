@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { checkPayoutStatus, triggerVendorPayout, type PayoutResult } from "./payout";
 
 /**
- * Clôture d'une commande livrée et reversement des 95 % au vendeur.
+ * Clôture d'une commande livrée et reversement de la part nette au vendeur.
  *
  * Utilisé par la confirmation de réception de l'acheteur et par l'auto-release
  * de secours : dans les deux cas, la commande passe à `COMPLETED` puis le
