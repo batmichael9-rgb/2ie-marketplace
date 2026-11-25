@@ -22,6 +22,7 @@ import {
 } from "@/lib/money";
 import { autoReleaseDeliveredOrders } from "@/lib/payments/auto-release";
 import { StockBadge } from "@/components/stock-badge";
+import { retryVendorPayoutAction } from "@/server/actions/payouts";
 import {
   createShareLinkAction,
   deleteProductAction,
@@ -159,6 +160,9 @@ export default async function VendorDashboardPage({
     params.boutique === "maj" ? "Informations de la boutique mises à jour." : null,
     params.versement === "maj"
       ? `Comptes de versement enregistrés : tes ${netLabel} % seront reversés sur le compte choisi.`
+      : null,
+    params.versement === "relance"
+      ? "Relance du virement envoyée. Le statut sera mis à jour à la confirmation de l'opérateur."
       : null,
   ].filter(Boolean) as string[];
 
@@ -456,6 +460,14 @@ export default async function VendorDashboardPage({
                               ? "Échec — nouvelle tentative auto"
                               : "En attente de reversement"}
                       </span>
+                      {order.payoutStatus === "FAILED" ? (
+                        <form action={retryVendorPayoutAction} className="mt-2">
+                          <input type="hidden" name="orderId" value={order.id} />
+                          <button type="submit" className="btn-secondary !py-1.5 !text-xs">
+                            Relancer le virement
+                          </button>
+                        </form>
+                      ) : null}
                     </td>
                   </tr>
                 ))}
@@ -715,10 +727,20 @@ export default async function VendorDashboardPage({
                         </p>
                       ) : null}
 
-                      {isOnlinePaid && order.payoutStatus === "FAILED" && order.payoutError ? (
-                        <p className="rounded-lg bg-red-50 px-2 py-1 text-left text-xs text-red-700">
-                          {order.payoutError}
-                        </p>
+                      {isOnlinePaid && order.payoutStatus === "FAILED" ? (
+                        <div className="space-y-2 text-left">
+                          {order.payoutError ? (
+                            <p className="max-h-40 overflow-y-auto break-words rounded-lg bg-red-50 px-2 py-1 text-xs text-red-700">
+                              {order.payoutError}
+                            </p>
+                          ) : null}
+                          <form action={retryVendorPayoutAction}>
+                            <input type="hidden" name="orderId" value={order.id} />
+                            <button type="submit" className="btn-secondary !py-1.5 !text-xs">
+                              Relancer le virement
+                            </button>
+                          </form>
+                        </div>
                       ) : null}
 
                       {order.status === "DELIVERED" ? (

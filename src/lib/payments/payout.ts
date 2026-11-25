@@ -17,19 +17,21 @@ import { MONEYFUSION_BASE_URL, moneyFusionFetch } from "./moneyfusion";
  * secours.
  */
 
-const FALLBACK_MODES: Record<string, string> = {
-  ORANGE_MONEY: "orange-money-bf",
-  MOOV_MONEY: "moov-bf",
-  WAVE: "wave-bf",
-  CARD: "card-bf",
-};
-
 const METHOD_KEYWORDS: Record<string, string[]> = {
   ORANGE_MONEY: ["orange"],
   MOOV_MONEY: ["moov"],
   WAVE: ["wave"],
   CARD: ["card", "visa", "mastercard", "bank", "rib"],
 };
+
+/** Champs qui portent directement l'identifiant attendu par /withdraw. */
+const EXPLICIT_MODE_FIELDS = [
+  "withdraw_mode",
+  "withdrawmode",
+  "withdraw-mode",
+  "withdrawMode",
+  "mode",
+];
 
 /** Statuts depuis lesquels un virement peut être (re)lancé. */
 const CLAIMABLE_STATUSES = ["READY_FOR_PAYOUT", "FAILED"];
@@ -91,49 +93,123 @@ function decodeToken(json: any): string | null {
   return token ? String(token) : null;
 }
 
-function extractMethods(json: any): Array<Record<string, unknown>> {
-  const candidates = [
-    json,
-    json?.data,
-    json?.methods,
-    json?.data?.methods,
-    json?.withdraw_methods,
-    json?.data?.withdraw_methods,
-  ];
-  for (const candidate of candidates) {
-    if (Array.isArray(candidate)) {
-      return candidate.filter(
-        (item): item is Record<string, unknown> => Boolean(item) && typeof item === "object",
-      );
-    }
-  }
-  return [];
+interface WithdrawMethodCandidate {
+  record: Record<string, unknown>;
+  /** Clé du parent quand l'API renvoie un dictionnaire mode → libellé. */
+  hint: string;
 }
 
-/** Choisit l'identifiant de retrait correspondant au mode préféré du vendeur. */
-function resolveWithdrawMode(methods: Array<Record<string, unknown>>, method: string): string {
-  const keywords = METHOD_KEYWORDS[method] ?? METHOD_KEYWORDS.ORANGE_MONEY;
-  const match = methods.find((candidate) => {
-    const haystack = [
-      candidate.code,
-      candidate.slug,
-      candidate.id,
-      candidate.name,
-      candidate.label,
-      candidate.countryCode,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    return keywords.some((keyword) => haystack.includes(keyword));
-  });
+function stringFields(record: Record<string, unknown>): Array<[string, string]> {
+  return Object.entries(record)
+    .filter(([, value]) => typeof value === "string" || typeof value === "number")
+    .map(([key, value]) => [key, String(value).trim()] as [string, string])
+    .filter(([, value]) => value.length > 0);
+}
 
-  if (match) {
-    const value = match.code ?? match.slug ?? match.id ?? match.name;
-    if (value) return String(value);
+function explicitMode(candidate: WithdrawMethodCandidate): string | null {
+  const fields = stringFields(candidate.record);
+  for (const name of EXPLICIT_MODE_FIELDS) {
+    const match = fields.find(([key]) => key.toLowerCase() === name.toLowerCase());
+    if (match) return match[1];
+  }
+  return null;
+}
+
+/**
+ * Parcourt toute la réponse JSON, y compris les listes et dictionnaires
+ * imbriqués, pour ne dépendre ni d'une clé d'enveloppe ni d'un libellé fixe.
+ */
+function collectMethodCandidates(
+  value: unknown,
+  depth = 0,
+  hint = "",
+  out: WithdrawMethodCandidate[] = [],
+): WithdrawMethodCandidate[] {
+  if (depth > 6 || value == null) return out;
+
+  if (Array.isArray(value)) {
+    for (const item of value) collectMethodCandidates(item, depth + 1, hint, out);
+    return out;
   }
 
-  return FALLBACK_MODES[method] ?? FALLBACK_MODES.ORANGE_MONEY;
+  if (typeof value !== "object") return out;
+
+  const record = value as Record<string, unknown>;
+  const entries = Object.entries(record);
+  const primitiveEntries = entries.filter(
+    ([, child]) => child == null || typeof child !== "object",
+  );
+
+  if (primitiveEntries.length > 0) {
+    // Dictionnaire { "moov-bf": "Moov Money", "orange-bf": "Orange Money" }.
+    const looksLikeMap = primitiveEntries.every(([key]) =>
+      /orange|moov|wave|card|visa|mastercard|bank|rib|(^|[-_])bf($|[-_])/i.test(key),
+    );
+    if (looksLikeMap) {
+      for (const [key, child] of primitiveEntries) {
+        out.push({ record: { withdraw_mode: key, name: child }, hint: key });
+      }
+    }
+  }
+
+  const recognized = entries.some(([key]) =>
+    /mode|code|slug|method|name|key|id|operator|provider|network/i.test(key),
+  );
+  // Un objet sans champ reconnu reste exploitable si son parent est une clé
+  // d'opérateur (ex. { "orange": { "label": ... } }).
+  const parentHint = hint && /orange|moov|wave|card|visa|mastercard|bank|bf/i.test(hint);
+  if (recognized || (parentHint && primitiveEntries.length > 0)) {
+    out.push({ record, hint });
+  }
+
+  for (const [key, child] of entries) {
+    if (child && typeof child === "object") {
+      collectMethodCandidates(child, depth + 1, key, out);
+    }
+  }
+
+  return out;
+}
+
+function scoreModeValue(value: string, keywords: string[]): number {
+  const lower = value.toLowerCase();
+  const keyword = keywords.find((item) => lower.includes(item));
+  if (!keyword) return 0;
+
+  let score = 50;
+  if (new RegExp(`(^|[^a-z])${keyword}($|[^a-z])`).test(lower)) score += 15;
+  if (/(^|[-_\s])bf($|[-_\s])/.test(lower)) score += 10;
+  if (lower.includes("-") || lower.includes("_")) score += 5;
+  if (lower.includes("money")) score += 2;
+  return score;
+}
+
+/**
+ * Choisit l'identifiant de retrait correspondant au mode préféré du vendeur.
+ * Les champs `withdraw_mode` sont prioritaires ; sinon tous les champs texte
+ * retournés sont comparés (code, slug, method, name, id, operator, etc.).
+ */
+function resolveWithdrawMode(candidates: WithdrawMethodCandidate[], method: string): string | null {
+  const keywords = METHOD_KEYWORDS[method] ?? METHOD_KEYWORDS.ORANGE_MONEY;
+  let best: { value: string; score: number } | null = null;
+
+  for (const candidate of candidates) {
+    const explicit = explicitMode(candidate);
+    if (explicit && scoreModeValue(explicit, keywords) > 0) {
+      return explicit;
+    }
+
+    const values = [
+      ...(candidate.hint ? [candidate.hint] : []),
+      ...stringFields(candidate.record).map(([, value]) => value),
+    ];
+    for (const value of values) {
+      const score = scoreModeValue(value, keywords);
+      if (score > (best?.score ?? 0)) best = { value, score };
+    }
+  }
+
+  return best?.value ?? null;
 }
 
 /** Conserve la cause technique exacte, lisible depuis le tableau de bord. */
@@ -146,8 +222,7 @@ function errorDetail(message: string, raw?: unknown): string {
       detail = String(raw);
     }
   }
-  const text = detail && detail !== "{}" ? `${message} — ${detail}` : message;
-  return text.slice(0, 1_000);
+  return detail && detail !== "{}" ? `${message} — ${detail}` : message;
 }
 
 /** Marque le virement en échec et expose le message pour diagnostic. */
@@ -289,19 +364,40 @@ export async function triggerVendorPayout(orderId: string): Promise<PayoutResult
 
   // Méthodes de retrait disponibles au Burkina Faso ("bf") : elles changent
   // côté opérateur, d'où l'interrogation dynamique avant chaque virement.
-  let methods: Array<Record<string, unknown>> = [];
+  let methodsResponse: unknown = null;
+  let methodsError: unknown = null;
+  let candidates: WithdrawMethodCandidate[] = [];
   try {
     const response = await moneyFusionFetch(
       `${MONEYFUSION_BASE_URL}/api/v1/withdraw/methods?country=bf`,
       { method: "GET" },
     );
-    const json = await response.json().catch(() => null);
-    methods = extractMethods(json);
+    methodsResponse = await response.json().catch(() => null);
+    candidates = collectMethodCandidates(methodsResponse);
+
+    if ((methodsResponse as any)?.statut === false) {
+      console.error("Méthodes de retrait Money Fusion refusées :", methodsResponse);
+    }
   } catch (error) {
+    methodsError = error instanceof Error ? error.message : String(error);
     console.error("Méthodes de retrait Money Fusion :", error);
   }
 
-  const withdrawMode = resolveWithdrawMode(methods, account.method);
+  const withdrawMode = resolveWithdrawMode(candidates, account.method);
+
+  if (!withdrawMode) {
+    const message = `Aucun mode de retrait ${account.label} détecté pour le Burkina Faso.`;
+    const diagnostic = {
+      operator: account.method,
+      withdraw_mode: null,
+      phone: payoutPhone,
+      amount,
+      withdraw_methods_response: methodsResponse,
+      withdraw_methods_error: methodsError,
+    };
+    await failPayout(order.id, message, diagnostic);
+    return { ok: false, token: null, message, raw: diagnostic };
+  }
 
   try {
     const response = await moneyFusionFetch(`${MONEYFUSION_BASE_URL}/api/v1/withdraw`, {
@@ -317,11 +413,23 @@ export async function triggerVendorPayout(orderId: string): Promise<PayoutResult
     const json: any = await response.json().catch(() => ({}));
     const token = decodeToken(json);
 
-    if (!response.ok || !token) {
+    if (!response.ok || json?.statut === false || !token) {
       const message =
-        json?.message ?? json?.error ?? "Le reversement n'a pas pu être déclenché.";
-      await failPayout(order.id, String(message), json);
-      return { ok: false, token: null, message: String(message), raw: json };
+        (json?.statut === false ? json?.message ?? json?.error : null) ??
+        json?.message ??
+        json?.error ??
+        "Le reversement n'a pas pu être déclenché.";
+      const diagnostic = {
+        operator: account.method,
+        withdraw_mode: withdrawMode,
+        phone: payoutPhone,
+        amount,
+        withdraw_methods_response: methodsResponse,
+        withdraw_methods_error: methodsError,
+        withdraw_response: json,
+      };
+      await failPayout(order.id, String(message), diagnostic);
+      return { ok: false, token: null, message: String(message), raw: diagnostic };
     }
 
     await db.order.update({
@@ -332,15 +440,16 @@ export async function triggerVendorPayout(orderId: string): Promise<PayoutResult
     return { ok: true, token, raw: json };
   } catch (error) {
     const message = "Impossible de joindre le service de reversement.";
-    await failPayout(order.id, message, {
+    const diagnostic = {
+      operator: account.method,
+      withdraw_mode: withdrawMode,
+      phone: payoutPhone,
+      amount,
+      withdraw_methods_response: methodsResponse,
       error: error instanceof Error ? error.message : String(error),
-    });
-    return {
-      ok: false,
-      token: null,
-      message,
-      raw: { error: error instanceof Error ? error.message : String(error) },
     };
+    await failPayout(order.id, message, diagnostic);
+    return { ok: false, token: null, message, raw: diagnostic };
   }
 }
 

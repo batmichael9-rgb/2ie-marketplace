@@ -201,7 +201,7 @@ export default async function AdminPayoutsPage({
                           : (PAYOUT_STATUS_LABELS[order.payoutStatus] ?? order.payoutStatus)}
                       </span>
                       {order.payoutStatus === "FAILED" && order.payoutError ? (
-                        <p className="mt-1 max-w-[260px] text-xs text-red-700">
+                        <p className="mt-1 max-h-40 max-w-[320px] overflow-y-auto break-words text-xs text-red-700">
                           {order.payoutError}
                         </p>
                       ) : null}
@@ -211,7 +211,7 @@ export default async function AdminPayoutsPage({
                         <form action={triggerPayoutAction}>
                           <input type="hidden" name="orderId" value={order.id} />
                           <button type="submit" className="btn-secondary !py-1.5 !text-xs">
-                            Relancer
+                            Relancer le virement
                           </button>
                         </form>
                       ) : order.payoutStatus === "PAID" ? (
