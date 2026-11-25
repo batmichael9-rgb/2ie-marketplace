@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { canBuyerCancelOrder } from "@/lib/domain";
+import { completeAndPayoutOrder } from "@/lib/payments/auto-release";
+import { notifyUserSafely } from "@/lib/push";
 import { restockOrder } from "@/lib/stock";
 
 /**
@@ -78,4 +80,62 @@ export async function cancelOrderAction(formData: FormData) {
   }
 
   redirect(`/commande/${order.reference}?annulee=1`);
+}
+
+/**
+ * Confirmation de réception par l'acheteur : la commande passe à « Terminée »
+ * et le reversement des 95 % est déclenché immédiatement, sans administrateur.
+ */
+export async function confirmReceiptAction(formData: FormData) {
+  const user = await requireUser("/mes-commandes");
+  const orderId = String(formData.get("orderId") ?? "");
+
+  const order = await db.order.findFirst({
+    where: { id: orderId, buyerId: user.id },
+    include: {
+      vendor: { select: { userId: true, shopName: true } },
+      payments: { orderBy: { createdAt: "desc" }, take: 1 },
+    },
+  });
+
+  if (!order) redirect("/mes-commandes?erreur=commande");
+
+  if (order.status !== "DELIVERED" || order.paymentStatus !== "PAID") {
+    redirect(`/commande/${order.reference}?erreur=reception`);
+  }
+
+  const guard = await db.order.updateMany({
+    where: {
+      id: order.id,
+      buyerId: user.id,
+      status: "DELIVERED",
+      paymentStatus: "PAID",
+    },
+    data: { status: "COMPLETED", completedAt: new Date() },
+  });
+
+  if (guard.count === 0) {
+    redirect(`/commande/${order.reference}?erreur=reception`);
+  }
+
+  const payment = order.payments[0];
+  if (payment && payment.provider !== "CASH") {
+    await completeAndPayoutOrder(order.id).catch((error) => {
+      console.error("Reversement après confirmation de réception :", error);
+    });
+
+    await notifyUserSafely(order.vendor.userId, {
+      title: "✅ Réception confirmée",
+      body: `Commande ${order.reference} terminée : les 95 % nets sont en cours de reversement.`,
+      url: "/espace-vendeur#finances",
+      tag: `payout-${order.id}`,
+    }).catch(() => undefined);
+  }
+
+  revalidatePath("/espace-vendeur");
+  revalidatePath("/espace-admin");
+  revalidatePath("/mes-commandes");
+  revalidatePath(`/commande/${order.reference}`);
+
+  redirect(`/commande/${order.reference}?reception=ok`);
 }

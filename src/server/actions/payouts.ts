@@ -6,8 +6,9 @@ import { requireAdmin } from "@/lib/auth";
 import { triggerVendorPayout } from "@/lib/payments/payout";
 
 /**
- * Reversement manuel des 95 % nets au vendeur, déclenché par un administrateur
- * depuis le tableau de bord des reversements.
+ * Relance de secours d'un virement en échec, depuis l'espace administrateur.
+ * Le flux normal (confirmation de réception ou auto-release 48 h) ne passe
+ * jamais par cette action.
  */
 export async function triggerPayoutAction(formData: FormData) {
   await requireAdmin();

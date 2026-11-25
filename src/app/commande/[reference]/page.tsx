@@ -14,7 +14,7 @@ import {
 } from "@/lib/domain";
 import { formatXof } from "@/lib/money";
 import { getProvider } from "@/lib/payments";
-import { cancelOrderAction } from "@/server/actions/orders";
+import { cancelOrderAction, confirmReceiptAction } from "@/server/actions/orders";
 import { startOrderConversationAction } from "@/server/actions/messages";
 
 export const metadata: Metadata = { title: "Ma commande" };
@@ -24,6 +24,8 @@ const CANCEL_ERRORS: Record<string, string> = {
     "Cette commande est déjà payée : contacte le vendeur pour un remboursement avant de l'annuler.",
   "trop-tard":
     "Trop tard : le vendeur a déjà validé, préparé ou livré cette commande. Contacte-le directement.",
+  reception:
+    "La réception ne peut être confirmée que pour une commande livrée et payée.",
 };
 
 export default async function OrderPage({
@@ -31,10 +33,10 @@ export default async function OrderPage({
   searchParams,
 }: {
   params: Promise<{ reference: string }>;
-  searchParams: Promise<{ annulee?: string; erreur?: string }>;
+  searchParams: Promise<{ annulee?: string; erreur?: string; reception?: string }>;
 }) {
   const { reference } = await params;
-  const { annulee, erreur } = await searchParams;
+  const { annulee, erreur, reception } = await searchParams;
 
   const order = await db.order.findUnique({
     where: { reference },
@@ -68,6 +70,7 @@ export default async function OrderPage({
     !paid;
 
   const cancellable = isBuyer && canBuyerCancelOrder(order);
+  const receivable = isBuyer && order.status === "DELIVERED" && paid;
 
   const statusTone = paid
     ? "bg-teal-50 text-teal-900"
@@ -94,6 +97,13 @@ export default async function OrderPage({
       {annulee ? (
         <p className="rounded-xl bg-teal-50 px-3 py-2 text-sm text-teal-900">
           Commande annulée. Le stock a été remis en vente et aucun montant n&apos;est dû.
+        </p>
+      ) : null}
+
+      {reception === "ok" ? (
+        <p className="rounded-xl bg-teal-50 px-3 py-2 text-sm text-teal-900">
+          Réception confirmée. La commande est terminée et les 95 % nets du vendeur sont en cours
+          de reversement automatique.
         </p>
       ) : null}
 
@@ -228,6 +238,25 @@ export default async function OrderPage({
           </button>
         </form>
       </section>
+
+      {receivable ? (
+        <section className="card flex flex-wrap items-center justify-between gap-3 p-5">
+          <div>
+            <h2 className="font-semibold">Tu as bien reçu ta commande ?</h2>
+            <p className="mt-0.5 text-xs text-slate-600">
+              Confirme la réception pour clôturer la commande. Le vendeur reçoit immédiatement ses
+              95 % nets. Sans action de ta part, la libération est automatique 48 h après la
+              livraison.
+            </p>
+          </div>
+          <form action={confirmReceiptAction}>
+            <input type="hidden" name="orderId" value={order.id} />
+            <button type="submit" className="btn-primary">
+              Confirmer la réception
+            </button>
+          </form>
+        </section>
+      ) : null}
 
       {cancellable ? (
         <section className="card flex flex-wrap items-center justify-between gap-3 p-5">

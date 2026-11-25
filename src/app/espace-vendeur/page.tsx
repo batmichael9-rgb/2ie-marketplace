@@ -15,6 +15,7 @@ import {
   type OrderStatus,
 } from "@/lib/domain";
 import { formatXof } from "@/lib/money";
+import { autoReleaseDeliveredOrders } from "@/lib/payments/auto-release";
 import { StockBadge } from "@/components/stock-badge";
 import {
   createShareLinkAction,
@@ -27,7 +28,13 @@ import {
 
 export const metadata: Metadata = { title: "Espace vendeur" };
 
-const OPEN_STATUSES = ["AWAITING_PAYMENT", "PAID", "VENDOR_CONFIRMED", "READY_FOR_PICKUP"];
+const OPEN_STATUSES = [
+  "AWAITING_PAYMENT",
+  "PAID",
+  "VENDOR_CONFIRMED",
+  "READY_FOR_PICKUP",
+  "DELIVERED",
+];
 
 export default async function VendorDashboardPage({
   searchParams,
@@ -45,6 +52,12 @@ export default async function VendorDashboardPage({
 }) {
   const { vendor } = await requireVendor();
   const params = await searchParams;
+
+  // Déclenchement paresseux de l'auto-release 48 h : le vendeur n'a pas à
+  // attendre le cron quotidien pour recevoir ses 95 %.
+  await autoReleaseDeliveredOrders().catch((error) => {
+    console.error("Auto-release des reversements :", error);
+  });
 
   // Compte qui recevra effectivement les 95 % nets, selon le mode préféré.
   const payoutAccount =
@@ -106,7 +119,7 @@ export default async function VendorDashboardPage({
       totals.net += net;
       totals.commission += order.platformFee;
       totals.gross += order.grossAmount || order.totalXof;
-      if (order.payoutStatus === "PAID_OUT") totals.paidOut += net;
+      if (order.payoutStatus === "PAID") totals.paidOut += net;
       else totals.pending += net;
       return totals;
     },
@@ -417,16 +430,21 @@ export default async function VendorDashboardPage({
                     <td className="px-4 py-2.5">
                       <span
                         className={
-                          order.payoutStatus === "PAID_OUT"
+                          order.payoutStatus === "PAID"
                             ? "badge bg-teal-50 text-teal-800"
-                            : "badge bg-amber-50 text-amber-800"
+                            : order.payoutStatus === "FAILED"
+                              ? "badge bg-red-50 text-red-700"
+                              : "badge bg-amber-50 text-amber-800"
                         }
+                        title={order.payoutError ?? undefined}
                       >
-                        {order.payoutStatus === "PAID_OUT"
-                          ? "Reversé"
+                        {order.payoutStatus === "PAID"
+                          ? "Reversé (95 %)"
                           : order.payoutStatus === "PROCESSING"
                             ? "Reversement en cours"
-                            : "En attente de reversement"}
+                            : order.payoutStatus === "FAILED"
+                              ? "Échec — nouvelle tentative auto"
+                              : "En attente de reversement"}
                       </span>
                     </td>
                   </tr>
@@ -584,9 +602,15 @@ export default async function VendorDashboardPage({
               const canDeliver = ["PAID", "VENDOR_CONFIRMED", "READY_FOR_PICKUP"].includes(
                 order.status,
               );
-              const canCancel = !["COMPLETED", "CANCELLED", "EXPIRED", "REFUNDED"].includes(
-                order.status,
-              );
+              const canCancel = ![
+                "DELIVERED",
+                "COMPLETED",
+                "CANCELLED",
+                "EXPIRED",
+                "REFUNDED",
+              ].includes(order.status);
+              const isOnlinePaid =
+                order.paymentStatus === "PAID" && payment?.provider !== "CASH";
               const paymentLabel = PAYMENT_STATUS_LABELS[order.paymentStatus] ?? order.paymentStatus;
               const awaitingOnlinePayment =
                 payment?.provider === "MONEYFUSION" &&
@@ -605,6 +629,17 @@ export default async function VendorDashboardPage({
                       <span className="badge bg-slate-100 text-slate-700">{statusLabel}</span>
                       {order.type === "RESERVATION" ? (
                         <span className="badge bg-teal-50 text-teal-700">Réservation</span>
+                      ) : null}
+                      {isOnlinePaid && order.payoutStatus === "PAID" ? (
+                        <span className="badge bg-teal-50 text-teal-800">Reversé (95 %)</span>
+                      ) : null}
+                      {isOnlinePaid && order.payoutStatus === "PROCESSING" ? (
+                        <span className="badge bg-amber-50 text-amber-800">
+                          Reversement en cours
+                        </span>
+                      ) : null}
+                      {isOnlinePaid && order.payoutStatus === "FAILED" ? (
+                        <span className="badge bg-red-50 text-red-700">Reversement échoué</span>
                       ) : null}
                     </div>
                     <span className="text-xs text-slate-500">{formatDate(order.createdAt)}</span>
@@ -668,6 +703,19 @@ export default async function VendorDashboardPage({
                         </p>
                       ) : null}
 
+                      {isOnlinePaid && order.payoutStatus === "FAILED" && order.payoutError ? (
+                        <p className="rounded-lg bg-red-50 px-2 py-1 text-left text-xs text-red-700">
+                          {order.payoutError}
+                        </p>
+                      ) : null}
+
+                      {order.status === "DELIVERED" ? (
+                        <p className="rounded-lg bg-teal-50 px-2 py-1 text-left text-xs text-teal-900">
+                          En attente de confirmation de l&apos;acheteur, ou reversement automatique
+                          48 h après la livraison.
+                        </p>
+                      ) : null}
+
                       <div className="flex flex-wrap gap-2 sm:justify-end">
                         {canConfirm ? (
                           <form action={updateOrderAction}>
@@ -684,7 +732,7 @@ export default async function VendorDashboardPage({
                             <input type="hidden" name="orderId" value={order.id} />
                             <input type="hidden" name="intent" value="DELIVER" />
                             <button type="submit" className="btn-primary !py-1.5 !text-xs">
-                              Livrée / payée
+                              {isOnlinePaid ? "Marquer livrée" : "Livrée / payée"}
                             </button>
                           </form>
                         ) : null}

@@ -60,35 +60,40 @@ export async function POST(request: Request) {
   const verified = await checkPayoutStatus(token);
   const rawStatus = String(body.statut ?? body.status ?? "").toLowerCase();
 
+  // La vérification serveur prime : un webhook ne peut ni contredire un
+  // virement confirmé, ni transformer une annulation en succès. Le corps de la
+  // notification ne sert que si Money Fusion n'a pas encore de statut définitif.
   const completed =
     verified.status === "PAID" ||
-    event.includes("completed") ||
-    rawStatus === "completed" ||
-    rawStatus === "paid";
+    (verified.status === "PENDING" &&
+      (event.includes("completed") || rawStatus === "completed" || rawStatus === "paid"));
 
   const cancelled =
     verified.status === "CANCELLED" ||
-    event.includes("cancel") ||
-    rawStatus === "cancelled" ||
-    rawStatus === "canceled";
+    (verified.status === "PENDING" &&
+      (event.includes("cancel") || rawStatus === "cancelled" || rawStatus === "canceled"));
 
-  if (completed && order.payoutStatus !== "PAID_OUT") {
+  if (completed && order.payoutStatus !== "PAID") {
     await db.order.update({
       where: { id: order.id },
-      data: { payoutStatus: "PAID_OUT" },
+      data: { payoutStatus: "PAID", payoutError: null },
     });
     await db.paymentEvent.updateMany({
       where: { provider: "MONEYFUSION_PAYOUT", providerEventId: eventKey },
       data: { processedAt: new Date() },
     });
-    return json({ received: true, outcome: "PAID_OUT" });
+    return json({ received: true, outcome: "PAID" });
   }
 
   if (cancelled) {
-    // Le virement peut être relancé depuis le tableau de bord administrateur.
+    // Échec conservé pour diagnostic ; la relance de secours est proposée dans
+    // l'espace administrateur (le flux normal, lui, reste automatique).
     await db.order.update({
       where: { id: order.id },
-      data: { payoutStatus: "READY_FOR_PAYOUT" },
+      data: {
+        payoutStatus: "FAILED",
+        payoutError: "Virement annulé ou rejeté par Money Fusion.",
+      },
     });
     await db.paymentEvent.updateMany({
       where: { provider: "MONEYFUSION_PAYOUT", providerEventId: eventKey },
@@ -97,7 +102,7 @@ export async function POST(request: Request) {
         processingError: "payout_cancelled",
       },
     });
-    return json({ received: true, outcome: "READY_FOR_PAYOUT" });
+    return json({ received: true, outcome: "FAILED" });
   }
 
   await db.paymentEvent.updateMany({

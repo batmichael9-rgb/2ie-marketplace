@@ -206,8 +206,10 @@ model Order {
   grossAmount    Int    @default(0)
   platformFee    Int    @default(0)
   vendorNetAmount Int   @default(0)
-  // PENDING | READY_FOR_PAYOUT | PROCESSING | PAID_OUT (paiements en ligne uniquement).
+  // PENDING | READY_FOR_PAYOUT | PROCESSING | PAID | FAILED (paiements en ligne uniquement).
   payoutStatus  String   @default("PENDING")
+  // Dernier message d'erreur du virement Money Fusion (diagnostic admin/vendeur).
+  payoutError   String?
   // Suivi Money Fusion : token renvoyé à l'initialisation du Payin, puis
   // tokenPay du Payout vendeur. Aucune de ces valeurs n'est exposée au client.
   paymentToken  String? // token Payin (alias historique tokenPay)
@@ -222,6 +224,9 @@ model Order {
   expiresAt     DateTime?
   confirmedAt   DateTime?
   completedAt   DateTime?
+  // Horodatage du passage en « Livrée » : l'auto-release des 95 % se déclenche
+  // 48 h plus tard si l'acheteur n'a pas confirmé la réception.
+  deliveredAt   DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -235,6 +240,7 @@ model Order {
   @@index([buyerId, createdAt])
   @@index([tokenPay])
   @@index([payoutToken])
+  @@index([payoutStatus, deliveredAt])
 }
 
 model OrderItem {

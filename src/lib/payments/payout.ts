@@ -8,6 +8,11 @@ import { MONEYFUSION_BASE_URL, moneyFusionFetch } from "./moneyfusion";
  * Le montant est recalculé à partir de la commande (jamais fourni par le
  * client), puis envoyé à Money Fusion. Le token du virement est conservé sur la
  * commande pour le suivi webhook et la vérification manuelle.
+ *
+ * Aucune étape du flux normal ne dépend d'un administrateur : le virement est
+ * déclenché à la confirmation de réception (ou par l'auto-release 48 h).
+ * `FAILED` + `payoutError` ne servent qu'au diagnostic et à la relance de
+ * secours.
  */
 
 const FALLBACK_MODES: Record<string, string> = {
@@ -23,6 +28,9 @@ const METHOD_KEYWORDS: Record<string, string[]> = {
   WAVE: ["wave"],
   CARD: ["card", "visa", "mastercard", "bank", "rib"],
 };
+
+/** Statuts depuis lesquels un virement peut être (re)lancé. */
+const CLAIMABLE_STATUSES = ["READY_FOR_PAYOUT", "FAILED"];
 
 export interface VendorPayoutAccount {
   phone: string;
@@ -58,6 +66,21 @@ export function vendorPayoutAccount(vendor: {
     "";
 
   return { phone, method, label: payoutMethodLabel(method) };
+}
+
+/**
+ * Numéro attendu par Money Fusion pour `countryCode: "bf"` : 8 chiffres locaux,
+ * sans espaces, tirets ni préfixe pays.
+ *
+ *   "+226 07 06 91 89" → "07069189"
+ *   "00226 07 06 91 89" → "07069189"
+ *   "07-06-91-89" → "07069189"
+ */
+export function normalizeBfPayoutPhone(raw: string | null | undefined): string {
+  let digits = String(raw ?? "").replace(/\D/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("226")) digits = digits.slice(3);
+  return /^\d{8}$/.test(digits) ? digits : "";
 }
 
 function decodeToken(json: any): string | null {
@@ -111,6 +134,34 @@ function resolveWithdrawMode(methods: Array<Record<string, unknown>>, method: st
   return FALLBACK_MODES[method] ?? FALLBACK_MODES.ORANGE_MONEY;
 }
 
+/** Conserve la cause technique exacte, lisible depuis le tableau de bord. */
+function errorDetail(message: string, raw?: unknown): string {
+  let detail = "";
+  if (raw != null) {
+    try {
+      detail = typeof raw === "string" ? raw : JSON.stringify(raw);
+    } catch {
+      detail = String(raw);
+    }
+  }
+  const text = detail && detail !== "{}" ? `${message} — ${detail}` : message;
+  return text.slice(0, 1_000);
+}
+
+/** Marque le virement en échec et expose le message pour diagnostic. */
+async function failPayout(orderId: string, message: string, raw?: unknown): Promise<void> {
+  const payoutError = errorDetail(message, raw);
+  console.error(`Reversement vendeur ${orderId} :`, payoutError);
+  await db.order
+    .update({
+      where: { id: orderId },
+      data: { payoutStatus: "FAILED", payoutError },
+    })
+    .catch((error) => {
+      console.error("Impossible d'enregistrer l'échec du reversement :", error);
+    });
+}
+
 export interface PayoutResult {
   ok: boolean;
   token: string | null;
@@ -120,19 +171,11 @@ export interface PayoutResult {
 
 /**
  * Déclenche le virement des 95 % nets au vendeur pour une commande payée en
- * ligne. Idempotent : une commande déjà reversée (ou en cours) n'est pas
- * renvoyée une seconde fois.
+ * ligne. Idempotent et sûr en concurrence : la commande est réservée
+ * (`PROCESSING`) atomiquement avant l'appel réseau, donc deux confirmations
+ * simultanées ne peuvent pas envoyer deux virements.
  */
 export async function triggerVendorPayout(orderId: string): Promise<PayoutResult> {
-  if (!process.env.MONEYFUSION_PRIVATE_KEY) {
-    return {
-      ok: false,
-      token: null,
-      message: "Le service de reversement n'est pas configuré.",
-      raw: { error: "missing_private_key" },
-    };
-  }
-
   const order = await db.order.findUnique({
     where: { id: orderId },
     include: {
@@ -154,7 +197,7 @@ export async function triggerVendorPayout(orderId: string): Promise<PayoutResult
     return { ok: false, token: null, message: "Commande introuvable.", raw: null };
   }
 
-  if (order.payoutStatus === "PAID_OUT") {
+  if (order.payoutStatus === "PAID") {
     return { ok: true, token: order.payoutToken, message: "Commande déjà reversée.", raw: null };
   }
 
@@ -167,7 +210,7 @@ export async function triggerVendorPayout(orderId: string): Promise<PayoutResult
     };
   }
 
-  if (order.paymentStatus !== "PAID" || order.payoutStatus !== "READY_FOR_PAYOUT") {
+  if (order.paymentStatus !== "PAID" || !CLAIMABLE_STATUSES.includes(order.payoutStatus)) {
     return {
       ok: false,
       token: null,
@@ -176,8 +219,21 @@ export async function triggerVendorPayout(orderId: string): Promise<PayoutResult
     };
   }
 
+  if (!process.env.MONEYFUSION_PRIVATE_KEY) {
+    await failPayout(order.id, "Le service de reversement n'est pas configuré.", {
+      error: "missing_private_key",
+    });
+    return {
+      ok: false,
+      token: null,
+      message: "Le service de reversement n'est pas configuré.",
+      raw: { error: "missing_private_key" },
+    };
+  }
+
   const account = vendorPayoutAccount(order.vendor);
   if (!account.phone) {
+    await failPayout(order.id, `Aucun compte ${account.label} renseigné par le vendeur.`);
     return {
       ok: false,
       token: null,
@@ -186,12 +242,44 @@ export async function triggerVendorPayout(orderId: string): Promise<PayoutResult
     };
   }
 
+  // Money Fusion attend un numéro local à 8 chiffres pour le Burkina Faso.
+  const payoutPhone =
+    account.method === "CARD" ? account.phone.trim() : normalizeBfPayoutPhone(account.phone);
+  if (!payoutPhone) {
+    const message = `Numéro ${account.label} invalide : format Burkina Faso à 8 chiffres attendu.`;
+    await failPayout(order.id, message, { phone: account.phone });
+    return { ok: false, token: null, message, raw: { phone: account.phone } };
+  }
+
   const amount = Math.floor(
     order.vendorNetAmount || Math.max(0, (order.grossAmount || order.totalXof) - order.platformFee),
   );
 
   if (amount <= 0) {
+    await failPayout(order.id, "Montant net vendeur nul.");
     return { ok: false, token: null, message: "Montant net vendeur nul.", raw: null };
+  }
+
+  // Verrou atomique : un seul appelant peut passer de READY/FAILED à PROCESSING.
+  const claim = await db.order.updateMany({
+    where: { id: order.id, payoutStatus: { in: CLAIMABLE_STATUSES } },
+    data: { payoutStatus: "PROCESSING", payoutError: null },
+  });
+
+  if (claim.count === 0) {
+    const latest = await db.order.findUnique({
+      where: { id: order.id },
+      select: { payoutStatus: true, payoutToken: true },
+    });
+    if (latest?.payoutStatus === "PAID") {
+      return { ok: true, token: latest.payoutToken, message: "Commande déjà reversée.", raw: null };
+    }
+    return {
+      ok: true,
+      token: latest?.payoutToken ?? null,
+      message: "Un reversement est déjà en cours pour cette commande.",
+      raw: null,
+    };
   }
 
   // Méthodes de retrait disponibles au Burkina Faso ("bf") : elles changent
@@ -215,7 +303,7 @@ export async function triggerVendorPayout(orderId: string): Promise<PayoutResult
       method: "POST",
       body: {
         countryCode: "bf",
-        phone: account.phone,
+        phone: payoutPhone,
         amount,
         withdraw_mode: withdrawMode,
         webhook_url: `${appUrl()}/api/payouts/webhook`,
@@ -225,25 +313,27 @@ export async function triggerVendorPayout(orderId: string): Promise<PayoutResult
     const token = decodeToken(json);
 
     if (!response.ok || !token) {
-      return {
-        ok: false,
-        token: null,
-        message: json?.message ?? json?.error ?? "Le reversement n'a pas pu être déclenché.",
-        raw: json,
-      };
+      const message =
+        json?.message ?? json?.error ?? "Le reversement n'a pas pu être déclenché.";
+      await failPayout(order.id, String(message), json);
+      return { ok: false, token: null, message: String(message), raw: json };
     }
 
     await db.order.update({
       where: { id: order.id },
-      data: { payoutToken: token, payoutStatus: "PROCESSING" },
+      data: { payoutToken: token, payoutStatus: "PROCESSING", payoutError: null },
     });
 
     return { ok: true, token, raw: json };
   } catch (error) {
+    const message = "Impossible de joindre le service de reversement.";
+    await failPayout(order.id, message, {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return {
       ok: false,
       token: null,
-      message: "Impossible de joindre le service de reversement.",
+      message,
       raw: { error: error instanceof Error ? error.message : String(error) },
     };
   }

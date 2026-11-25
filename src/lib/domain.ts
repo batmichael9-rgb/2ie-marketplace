@@ -19,6 +19,7 @@ export const ORDER_STATUSES = [
   "PAID",
   "VENDOR_CONFIRMED",
   "READY_FOR_PICKUP",
+  "DELIVERED",
   "COMPLETED",
   "CANCELLED",
   "EXPIRED",
@@ -31,6 +32,7 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   PAID: "Payée",
   VENDOR_CONFIRMED: "Confirmée par le vendeur",
   READY_FOR_PICKUP: "Prête à être retirée",
+  DELIVERED: "Livrée — confirme la réception",
   COMPLETED: "Terminée",
   CANCELLED: "Annulée",
   EXPIRED: "Expirée",
@@ -248,6 +250,15 @@ export function payoutMethodLabel(method: string | null | undefined): string {
   if (!method) return PAYOUT_METHOD_LABELS.ORANGE_MONEY;
   return PAYOUT_METHOD_LABELS[method as PayoutMethod] ?? method;
 }
+
+/** Statuts du virement des 95 % (Order.payoutStatus). */
+export const PAYOUT_STATUS_LABELS: Record<string, string> = {
+  PENDING: "En attente",
+  READY_FOR_PAYOUT: "Prêt à reverser",
+  PROCESSING: "Reversement en cours",
+  PAID: "Reversé (95 %)",
+  FAILED: "Reversement échoué",
+};
 
 /**
  * Normalise un numéro burkinabè au format international +226XXXXXXXX.

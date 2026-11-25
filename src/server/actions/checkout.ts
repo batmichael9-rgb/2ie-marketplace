@@ -133,7 +133,7 @@ export async function createOrderAction(formData: FormData) {
   const { platformFee, vendorNetAmount } = computeFeeBreakdown(subtotalXof);
   const feesXof = 0;
   const totalXof = subtotalXof;
-  const payoutStatus = isOnline ? "PENDING" : "PAID_OUT";
+  const payoutStatus = "PENDING";
   const reference = generateOrderReference();
   const merchantRef = `${reference}-1`;
 

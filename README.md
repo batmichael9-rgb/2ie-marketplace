@@ -177,7 +177,10 @@ Pour activer les paiements en ligne et les reversements vendeur :
 2. Récupérer la clé privée (`MONEYFUSION_PRIVATE_KEY`) et l'URL de Payin (`MONEYFUSION_API_URL`)
 3. Définir `FIXIE_URL` en production : tous les appels sortent par ces IP fixes, à autoriser côté Money Fusion
 4. Renseigner les URL de notification `https://<votre-domaine>/api/payments/webhook` (Payin) et `https://<votre-domaine>/api/payouts/webhook` (Payout)
-5. Exécuter la migration `prisma/migrations/20261125120000_moneyfusion_v1/migration.sql` dans l'éditeur SQL Supabase
+5. Exécuter les migrations `prisma/migrations/20261125120000_moneyfusion_v1/migration.sql` puis `prisma/migrations/20261125160000_auto_payout/migration.sql` dans l'éditeur SQL Supabase
+6. (Recommandé) Définir `CRON_SECRET` : le cron quotidien `/api/cron/auto-payout` (configuré dans `vercel.json`) libère automatiquement les 95 % 48 h après une livraison non confirmée
+
+Le flux de reversement est autonome : confirmation de réception par l'acheteur → virement immédiat ; à défaut, le cron et les chargements de tableau de bord déclenchent l'auto-release après 48 h. `/espace-admin` ne sert qu'au suivi des commissions et à la relance d'un virement en échec.
 
 ## 🔐 Gestion des rôles
 

@@ -13,11 +13,18 @@ import {
   type OrderStatus,
 } from "@/lib/domain";
 import { formatXof } from "@/lib/money";
-import { cancelOrderAction } from "@/server/actions/orders";
+import { autoReleaseDeliveredOrders } from "@/lib/payments/auto-release";
+import { cancelOrderAction, confirmReceiptAction } from "@/server/actions/orders";
 
 export const metadata: Metadata = { title: "Mes commandes" };
 
-const OPEN_STATUSES = ["AWAITING_PAYMENT", "PAID", "VENDOR_CONFIRMED", "READY_FOR_PICKUP"];
+const OPEN_STATUSES = [
+  "AWAITING_PAYMENT",
+  "PAID",
+  "VENDOR_CONFIRMED",
+  "READY_FOR_PICKUP",
+  "DELIVERED",
+];
 
 const ERRORS: Record<string, string> = {
   commande: "Commande introuvable.",
@@ -34,6 +41,12 @@ export default async function MyOrdersPage({
 }) {
   const user = await requireUser("/mes-commandes");
   const { erreur } = await searchParams;
+
+  // Auto-release de secours : libère les 95 % 48 h après la livraison si
+  // l'acheteur a oublié de confirmer la réception.
+  await autoReleaseDeliveredOrders().catch((error) => {
+    console.error("Auto-release des reversements :", error);
+  });
 
   const orders = await db.order.findMany({
     where: { buyerId: user.id },
@@ -134,6 +147,8 @@ function OrderList({
             const statusLabel = ORDER_STATUS_LABELS[order.status as OrderStatus] ?? order.status;
             const payment = order.payments[0];
             const cancellable = showCancel && canBuyerCancelOrder(order);
+            const receivable =
+              showCancel && order.status === "DELIVERED" && order.paymentStatus === "PAID";
 
             return (
               <li key={order.id} className="card overflow-hidden">
@@ -188,6 +203,14 @@ function OrderList({
                   <Link href={`/commande/${order.reference}`} className="btn-secondary !py-1.5 !text-xs">
                     Voir le détail
                   </Link>
+                  {receivable ? (
+                    <form action={confirmReceiptAction}>
+                      <input type="hidden" name="orderId" value={order.id} />
+                      <button type="submit" className="btn-primary !py-1.5 !text-xs">
+                        J&apos;ai reçu ma commande
+                      </button>
+                    </form>
+                  ) : null}
                   {cancellable ? (
                     <form action={cancelOrderAction}>
                       <input type="hidden" name="orderId" value={order.id} />

@@ -486,24 +486,39 @@ export async function updateOrderAction(formData: FormData) {
       redirect("/espace-vendeur?erreur=paiement-non-confirme");
     }
 
+    const now = new Date();
+
     await db.$transaction(async (tx) => {
+      // Paiement en ligne : « Livrée » attend la confirmation de réception par
+      // l'acheteur (ou l'auto-release 48 h). C'est cette confirmation qui
+      // déclenche le reversement des 95 %, jamais le vendeur seul.
+      // Paiement à la remise : la livraison vaut encaissement et clôture.
       const guard = await tx.order.updateMany({
-        where: { id: order.id, status: { notIn: ["COMPLETED", "CANCELLED", "EXPIRED"] } },
-        data: {
-          status: "COMPLETED",
-          paymentStatus: "PAID",
-          completedAt: new Date(),
+        where: {
+          id: order.id,
+          status: { notIn: ["COMPLETED", "DELIVERED", "CANCELLED", "EXPIRED", "REFUNDED"] },
         },
+        data: isCash
+          ? {
+              status: "COMPLETED",
+              paymentStatus: "PAID",
+              completedAt: now,
+              deliveredAt: now,
+            }
+          : {
+              status: "DELIVERED",
+              deliveredAt: now,
+            },
       });
 
       if (guard.count === 0) return;
 
       changed = true;
 
-      if (payment && payment.status !== "SUCCEEDED") {
+      if (isCash && payment && payment.status !== "SUCCEEDED") {
         await tx.payment.update({
           where: { id: payment.id },
-          data: { status: "SUCCEEDED", confirmedAt: new Date() },
+          data: { status: "SUCCEEDED", confirmedAt: now },
         });
       }
     });
@@ -539,7 +554,9 @@ export async function updateOrderAction(formData: FormData) {
   if (changed) {
     const messages: Record<string, string> = {
       CONFIRM: "confirmée par le vendeur",
-      DELIVER: "marquée comme livrée",
+      DELIVER: isCash
+        ? "livrée et clôturée"
+        : "livrée : confirme la réception pour clôturer la commande",
       CANCEL: "annulée par le vendeur",
     };
 

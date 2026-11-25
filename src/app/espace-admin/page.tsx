@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { formatBfPhone, formatDate, payoutMethodLabel } from "@/lib/domain";
+import {
+  PAYOUT_STATUS_LABELS,
+  formatBfPhone,
+  formatDate,
+  payoutMethodLabel,
+} from "@/lib/domain";
 import { formatXof } from "@/lib/money";
 import { vendorPayoutAccount } from "@/lib/payments/payout";
 import { triggerPayoutAction } from "@/server/actions/payouts";
@@ -10,11 +15,12 @@ import { triggerPayoutAction } from "@/server/actions/payouts";
 export const metadata: Metadata = { title: "Espace administrateur" };
 
 /**
- * Tableau de bord administrateur des reversements vendeurs.
+ * Suivi des reversements vendeurs — rôle purement informatif.
  *
- * Les 95 % nets d'une commande payée en ligne attendent ici leur virement.
- * Le bouton « Reverser les 95 % au vendeur » envoie le Payout Money Fusion vers
- * le compte choisi par le vendeur ; aucun montant n'est saisi à la main.
+ * Le flux normal est 100 % automatique : confirmation de réception par
+ * l'acheteur (ou auto-release 48 h) → virement des 95 % → webhook Money Fusion.
+ * L'administrateur n'intervient que pour relancer un virement en échec
+ * (`FAILED`), jamais pour le déclencher.
  */
 export default async function AdminPayoutsPage({
   searchParams,
@@ -27,7 +33,7 @@ export default async function AdminPayoutsPage({
   const orders = await db.order.findMany({
     where: {
       paymentStatus: "PAID",
-      payoutStatus: { in: ["READY_FOR_PAYOUT", "PROCESSING"] },
+      payoutStatus: { in: ["READY_FOR_PAYOUT", "PROCESSING", "PAID", "FAILED"] },
       payments: { some: { provider: { not: "CASH" } } },
     },
     include: {
@@ -44,18 +50,22 @@ export default async function AdminPayoutsPage({
         },
       },
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "desc" },
+    take: 100,
   });
 
   const totals = orders.reduce(
     (acc, order) => {
       const gross = order.grossAmount || order.totalXof;
+      const net = order.vendorNetAmount || gross - order.platformFee;
       acc.gross += gross;
       acc.commission += order.platformFee;
-      acc.net += order.vendorNetAmount || gross - order.platformFee;
+      acc.net += net;
+      if (order.payoutStatus === "PAID") acc.paidOut += net;
+      if (order.payoutStatus === "FAILED") acc.failed += 1;
       return acc;
     },
-    { gross: 0, commission: 0, net: 0 },
+    { gross: 0, commission: 0, net: 0, paidOut: 0, failed: 0 },
   );
 
   return (
@@ -64,13 +74,17 @@ export default async function AdminPayoutsPage({
         <p className="text-xs font-semibold uppercase tracking-wider text-teal-200">
           Espace administrateur
         </p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight">Reversements vendeurs</h1>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight">
+          Suivi des commissions et reversements
+        </h1>
         <p className="mt-1 max-w-2xl text-sm text-teal-50">
-          Montants encaissés en ligne en attente de virement. La commission plateforme de 5 %
-          est conservée ; les 95 % nets sont reversés au compte choisi par le vendeur.
+          Les 95 % nets sont reversés automatiquement à la confirmation de réception par
+          l&apos;acheteur, ou 48 h après la livraison. Aucune action administrative n&apos;est
+          nécessaire : cet écran ne sert qu&apos;au suivi et à la relance d&apos;un virement en
+          échec.
         </p>
 
-        <dl className="mt-5 grid grid-cols-3 gap-3">
+        <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-2xl bg-white/10 px-3 py-2">
             <dt className="text-xs text-teal-100">Brut encaissé</dt>
             <dd className="text-lg font-bold">{formatXof(totals.gross)}</dd>
@@ -80,37 +94,39 @@ export default async function AdminPayoutsPage({
             <dd className="text-lg font-bold">{formatXof(totals.commission)}</dd>
           </div>
           <div className="rounded-2xl bg-white/10 px-3 py-2">
-            <dt className="text-xs text-teal-100">Net à reverser (95 %)</dt>
+            <dt className="text-xs text-teal-100">Net vendeur (95 %)</dt>
             <dd className="text-lg font-bold">{formatXof(totals.net)}</dd>
+          </div>
+          <div className="rounded-2xl bg-white/10 px-3 py-2">
+            <dt className="text-xs text-teal-100">Échecs à relancer</dt>
+            <dd className="text-lg font-bold">{totals.failed}</dd>
           </div>
         </dl>
       </header>
 
       {params.reversement === "ok" ? (
         <p className="rounded-xl bg-teal-50 px-3 py-2 text-sm text-teal-900">
-          Reversement déclenché. Le statut sera mis à jour automatiquement à la confirmation de
+          Relance envoyée. Le statut sera mis à jour automatiquement à la confirmation de
           l&apos;opérateur.
         </p>
       ) : null}
 
       {params.erreur ? (
         <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
-          {params.erreur === "commande"
-            ? "Commande introuvable."
-            : params.erreur}
+          {params.erreur === "commande" ? "Commande introuvable." : params.erreur}
         </p>
       ) : null}
 
       {orders.length === 0 ? (
         <div className="card p-8 text-center">
-          <p className="font-semibold">Aucun reversement en attente</p>
+          <p className="font-semibold">Aucun reversement suivi pour le moment</p>
           <p className="mt-1 text-sm text-slate-600">
             Les commandes payées en ligne apparaîtront ici dès leur confirmation.
           </p>
         </div>
       ) : (
         <div className="card overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left text-sm">
+          <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="border-b border-slate-200 text-xs text-slate-500">
               <tr>
                 <th className="px-4 py-3 font-semibold">Commande</th>
@@ -118,7 +134,8 @@ export default async function AdminPayoutsPage({
                 <th className="px-4 py-3 font-semibold">Brut</th>
                 <th className="px-4 py-3 font-semibold">Commission 5 %</th>
                 <th className="px-4 py-3 font-semibold">Net vendeur (95 %)</th>
-                <th className="px-4 py-3 font-semibold">Compte de versement</th>
+                <th className="px-4 py-3 font-semibold">Compte</th>
+                <th className="px-4 py-3 font-semibold">Statut</th>
                 <th className="px-4 py-3 font-semibold">Action</th>
               </tr>
             </thead>
@@ -161,16 +178,36 @@ export default async function AdminPayoutsPage({
                         <span className="badge bg-red-50 text-red-700">Non configuré</span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
-                      {order.payoutStatus === "PROCESSING" ? (
-                        <span className="badge bg-amber-50 text-amber-800">En cours</span>
-                      ) : (
+                    <td className="px-4 py-3 align-top">
+                      <span
+                        className={
+                          order.payoutStatus === "PAID"
+                            ? "badge bg-teal-50 text-teal-800"
+                            : order.payoutStatus === "FAILED"
+                              ? "badge bg-red-50 text-red-700"
+                              : "badge bg-amber-50 text-amber-800"
+                        }
+                      >
+                        {PAYOUT_STATUS_LABELS[order.payoutStatus] ?? order.payoutStatus}
+                      </span>
+                      {order.payoutStatus === "FAILED" && order.payoutError ? (
+                        <p className="mt-1 max-w-[260px] text-xs text-red-700">
+                          {order.payoutError}
+                        </p>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3 align-top">
+                      {order.payoutStatus === "FAILED" ? (
                         <form action={triggerPayoutAction}>
                           <input type="hidden" name="orderId" value={order.id} />
-                          <button type="submit" className="btn-primary !py-1.5 !text-xs">
-                            Reverser les 95 % au vendeur
+                          <button type="submit" className="btn-secondary !py-1.5 !text-xs">
+                            Relancer
                           </button>
                         </form>
+                      ) : order.payoutStatus === "PAID" ? (
+                        <span className="text-xs text-teal-800">Automatique ✓</span>
+                      ) : (
+                        <span className="text-xs text-slate-500">Automatique</span>
                       )}
                     </td>
                   </tr>
