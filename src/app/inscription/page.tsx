@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { PlatformFeeInfo } from "@/components/platform-fee-info";
+import { VendorSignupHighlights } from "@/components/vendor-signup-highlights";
 import { getCurrentUser } from "@/lib/auth";
-import { PLATFORM_FEE_PERCENT, VENDOR_NET_PERCENT, formatPercent } from "@/lib/money";
 import {
   requestSignupCodeAction,
   verifySignupCodeAction,
@@ -32,8 +31,6 @@ export default async function RegisterPage({
 
   const params = await searchParams;
   const isVendor = params.vendeur === "1";
-  const feeLabel = formatPercent(PLATFORM_FEE_PERCENT);
-  const netLabel = formatPercent(VENDOR_NET_PERCENT);
   const email = params.email?.trim().toLowerCase() ?? "";
   const next = params.suivant ?? "";
   const onCodeStep = params.etape === "code" && email.length > 0;
@@ -241,7 +238,7 @@ export default async function RegisterPage({
                     </p>
                   </div>
 
-                  <PlatformFeeInfo />
+                  <VendorSignupHighlights />
 
                   <label className="flex items-start gap-3 rounded-xl border border-teal-200 bg-white p-3 text-sm">
                     <input
@@ -252,9 +249,9 @@ export default async function RegisterPage({
                       required
                     />
                     <span>
-                      J&apos;accepte la commission plateforme de {feeLabel} % sur chaque vente
-                      payée en ligne et le reversement des {netLabel} % restants sur mon numéro
-                      Mobile Money.
+                      J&apos;accepte les Frais de service &amp; Mobile Money appliqués aux ventes
+                      payées en ligne et le reversement automatique du montant net sur mon
+                      numéro Mobile Money.
                     </span>
                   </label>
                 </>
@@ -296,7 +293,7 @@ export default async function RegisterPage({
                 <div className="mt-6 rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-900">
                   <strong>Format d&apos;email requis :</strong> prenom.nom@2ie-edu.org
                 </div>
-                <PlatformFeeInfo className="mt-4" />
+                <VendorSignupHighlights className="mt-4" />
               </>
             ) : null}
 

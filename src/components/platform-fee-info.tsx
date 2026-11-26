@@ -6,14 +6,15 @@ import {
   formatXof,
 } from "@/lib/money";
 
-/** Exemples concrets affichés dans l'encadré de transparence de la commission. */
+/** Exemples concrets affichés dans l'encadré de transparence des frais. */
 const EXAMPLES = [500, 1_000, 10_000, 50_000];
 
 /**
- * Encadré de transparence de la commission plateforme.
+ * Encadré de transparence des frais de service, réservé à l'Espace vendeur.
  *
- * Affiché avant l'inscription vendeur et dans l'Espace vendeur : le vendeur
- * doit savoir exactement ce qu'il recevra avant de publier un produit.
+ * Le vendeur doit savoir exactement ce qu'il recevra avant de publier un
+ * produit. Le libellé « Frais de service & Mobile Money » rappelle que ces
+ * frais couvrent les opérateurs Mobile Money et l'hébergement sécurisé.
  */
 export function PlatformFeeInfo({ className = "" }: { className?: string }) {
   const feeLabel = formatPercent(PLATFORM_FEE_PERCENT);
@@ -23,12 +24,17 @@ export function PlatformFeeInfo({ className = "" }: { className?: string }) {
     <section
       className={`rounded-2xl border border-teal-200 bg-teal-50/70 p-4 text-sm text-teal-950 dark:border-teal-900 dark:bg-teal-950/40 dark:text-teal-50 ${className}`}
     >
-      <h2 className="text-base font-semibold">Commission plateforme de {feeLabel} %</h2>
+      <h2 className="text-base font-semibold">Frais de service &amp; Mobile Money : {feeLabel} %</h2>
       <p className="mt-1">
-        Sur chaque vente <strong>payée en ligne</strong> (Orange Money, Moov Money, Wave ou
-        carte bancaire), 2iE Market retient une commission de{" "}
-        <strong>{feeLabel} %</strong>. Les <strong>{netLabel} % restants</strong> vous sont
-        reversés sur votre numéro Mobile Money.
+        Sur chaque vente <strong>payée en ligne</strong> (Orange Money, Moov Money, Wave ou carte
+        bancaire), 2iE Market retient des frais de service de <strong>{feeLabel} %</strong>. Les{" "}
+        <strong>{netLabel} % restants</strong> vous sont reversés automatiquement sur votre numéro
+        Mobile Money.
+      </p>
+      <p className="mt-1 text-xs">
+        Ces frais couvrent principalement les frais d&apos;encaissement et de transfert des
+        opérateurs Mobile Money (Orange/Moov) ainsi que l&apos;hébergement sécurisé de la
+        plateforme.
       </p>
 
       <div className="mt-3 overflow-x-auto">
@@ -36,7 +42,7 @@ export function PlatformFeeInfo({ className = "" }: { className?: string }) {
           <thead>
             <tr className="border-b border-teal-200 dark:border-teal-800">
               <th className="py-1.5 pr-3 font-semibold">Prix de vente</th>
-              <th className="py-1.5 pr-3 font-semibold">Commission {feeLabel} %</th>
+              <th className="py-1.5 pr-3 font-semibold">Frais de service {feeLabel} %</th>
               <th className="py-1.5 font-semibold">Vous recevez</th>
             </tr>
           </thead>
@@ -56,12 +62,12 @@ export function PlatformFeeInfo({ className = "" }: { className?: string }) {
       </div>
 
       <p className="mt-3 text-xs">
-        Vous pouvez intégrer ces {feeLabel} % directement dans le prix de vos articles si vous
-        le souhaitez.
+        Vous pouvez intégrer ces {feeLabel} % directement dans le prix de vos articles si vous le
+        souhaitez.
       </p>
       <p className="mt-1 text-xs">
-        Le paiement à la remise sur le campus, lorsqu&apos;il est autorisé, ne supporte aucune
-        commission : le vendeur encaisse la totalité.
+        Le paiement à la remise sur le campus, lorsqu&apos;il est autorisé, ne supporte aucun frais
+        de service : le vendeur encaisse la totalité.
       </p>
     </section>
   );

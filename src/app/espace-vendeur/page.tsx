@@ -277,8 +277,8 @@ export default async function VendorDashboardPage({
           </h2>
           <p className="mt-1 text-sm text-slate-600">
             Chaque vente en ligne est encaissée par la plateforme, puis {netLabel} % nets te
-            sont reversés sur le compte choisi ci-dessous. La commission plateforme de{" "}
-            {feeLabel} % est déjà déduite.
+            sont reversés sur le compte choisi ci-dessous. Les Frais de service &amp; Mobile
+            Money de {feeLabel} % sont déjà déduits.
           </p>
         </div>
 
@@ -398,7 +398,8 @@ export default async function VendorDashboardPage({
         <div>
           <h2 className="text-xl font-bold tracking-tight">Finances</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Commission plateforme de {feeLabel} % retenue sur les ventes payées en ligne.
+            Frais de service &amp; Mobile Money de {feeLabel} % retenus sur les ventes payées en
+            ligne.
           </p>
         </div>
 
@@ -411,7 +412,7 @@ export default async function VendorDashboardPage({
               {formatXof(payoutTotals.net)}
             </dd>
             <p className="mt-1 text-xs text-slate-500">
-              Commission {feeLabel} % retenue : {formatXof(payoutTotals.commission)}
+              Frais de service &amp; Mobile Money {feeLabel} % : {formatXof(payoutTotals.commission)}
             </p>
           </div>
           <div className="card p-4">
@@ -438,6 +439,12 @@ export default async function VendorDashboardPage({
           </div>
         </dl>
 
+        <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+          Ces frais couvrent principalement les frais d&apos;encaissement et de transfert des
+          opérateurs Mobile Money (Orange/Moov) ainsi que l&apos;hébergement sécurisé de la
+          plateforme.
+        </p>
+
         {onlinePaidOrders.length > 0 ? (
           <div className="card overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -445,7 +452,7 @@ export default async function VendorDashboardPage({
                 <tr>
                   <th className="px-4 py-2.5 font-semibold">Commande</th>
                   <th className="px-4 py-2.5 font-semibold">Prix payé</th>
-                  <th className="px-4 py-2.5 font-semibold">Commission {feeLabel} %</th>
+                  <th className="px-4 py-2.5 font-semibold">Frais de transaction</th>
                   <th className="px-4 py-2.5 font-semibold">Net vendeur</th>
                   <th className="px-4 py-2.5 font-semibold">Compte de versement</th>
                   <th className="px-4 py-2.5 font-semibold">Reversement</th>
@@ -503,7 +510,7 @@ export default async function VendorDashboardPage({
         ) : (
           <p className="card p-4 text-sm text-slate-600">
             Aucune vente en ligne payée pour le moment. Les commandes payées à la remise ne
-            supportent pas de commission.
+            supportent pas de frais de service.
           </p>
         )}
 

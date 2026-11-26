@@ -6,9 +6,9 @@ import { formatPercent, formatXof, getMinOrderQuantity } from "@/lib/money";
 /**
  * Champ Prix avec simulateur en direct du net vendeur.
  *
- * Le prix saisi est le prix payé par l'acheteur. La commission configurée est
- * retenue sur la part vendeur : on affiche donc immédiatement le net et la
- * commission, pour que le vendeur ajuste son prix en connaissance de cause.
+ * Le prix saisi est le prix payé par l'acheteur. Les frais de service configurés
+ * sont retenus sur la part vendeur : on affiche donc immédiatement le net et les
+ * frais, pour que le vendeur ajuste son prix en connaissance de cause.
  */
 export function NetVendorPreview({
   defaultValue,
@@ -56,8 +56,8 @@ export function NetVendorPreview({
         aria-live="polite"
       >
         {valid
-          ? `Net vendeur (${netLabel} %) : ${formatXof(vendorNet)} (commission ${feeLabel} % : ${formatXof(platformFee)})`
-          : `Net vendeur (${netLabel} %) : — FCFA (commission ${feeLabel} % : — FCFA)`}
+          ? `Net vendeur (${netLabel} %) : ${formatXof(vendorNet)} (frais de service ${feeLabel} % : ${formatXof(platformFee)})`
+          : `Net vendeur (${netLabel} %) : — FCFA (frais de service ${feeLabel} % : — FCFA)`}
       </p>
       {belowPayoutMinimum ? (
         <p className="mt-1.5 rounded-lg bg-amber-50 px-2 py-1.5 text-xs font-medium text-amber-900">

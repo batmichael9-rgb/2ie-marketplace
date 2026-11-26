@@ -83,7 +83,7 @@ export default async function AdminPayoutsPage({
           Espace administrateur
         </p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight">
-          Suivi des commissions et reversements
+          Suivi des frais de service et reversements
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-teal-50">
           Les {netLabel} % nets sont reversés automatiquement à la confirmation de réception par
@@ -98,7 +98,7 @@ export default async function AdminPayoutsPage({
             <dd className="text-lg font-bold">{formatXof(totals.gross)}</dd>
           </div>
           <div className="rounded-2xl bg-white/10 px-3 py-2">
-            <dt className="text-xs text-teal-100">Commission {feeLabel} %</dt>
+            <dt className="text-xs text-teal-100">Frais de service &amp; Mobile Money</dt>
             <dd className="text-lg font-bold">{formatXof(totals.commission)}</dd>
           </div>
           <div className="rounded-2xl bg-white/10 px-3 py-2">
@@ -140,7 +140,7 @@ export default async function AdminPayoutsPage({
                 <th className="px-4 py-3 font-semibold">Commande</th>
                 <th className="px-4 py-3 font-semibold">Vendeur</th>
                 <th className="px-4 py-3 font-semibold">Brut</th>
-                <th className="px-4 py-3 font-semibold">Commission {feeLabel} %</th>
+                <th className="px-4 py-3 font-semibold">Frais de transaction</th>
                 <th className="px-4 py-3 font-semibold">Net vendeur ({netLabel} %)</th>
                 <th className="px-4 py-3 font-semibold">Compte</th>
                 <th className="px-4 py-3 font-semibold">Statut</th>

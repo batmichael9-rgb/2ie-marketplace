@@ -7,7 +7,6 @@ import { createSession, destroySession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { CAMPUSES, slugify, type Campus } from "@/lib/domain";
 import { sendOtpEmail } from "@/lib/email";
-import { PLATFORM_FEE_PERCENT, formatPercent } from "@/lib/money";
 import { OtpError, consumeOtp, issueOtp } from "@/lib/otp";
 import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import {
@@ -215,8 +214,8 @@ export async function verifySignupCodeAction(formData: FormData) {
     );
   }
 
-  // La commission plateforme configurée doit être acceptée explicitement avant
-  // l'ouverture de la boutique.
+  // Les frais de service doivent être acceptés explicitement avant l'ouverture
+  // de la boutique.
   if (isVendor && formData.get("vendorCommissionAccepted") !== "on") {
     redirect(
       signupUrl({
@@ -225,9 +224,7 @@ export async function verifySignupCodeAction(formData: FormData) {
         email: data.email,
         next,
         erreur:
-          `Coche la case d'acceptation de la commission plateforme de ${formatPercent(
-            PLATFORM_FEE_PERCENT,
-          )} % pour ouvrir ta boutique.`,
+          "Coche la case d'acceptation des Frais de service & Mobile Money pour ouvrir ta boutique.",
       }),
     );
   }
