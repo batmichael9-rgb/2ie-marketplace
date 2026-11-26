@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import Link from "next/link";
+import Image from "next/image";
 import "./globals.css";
 import { getCurrentUser } from "@/lib/auth";
 import { appUrl } from "@/lib/domain";
@@ -31,6 +32,7 @@ export const metadata: Metadata = {
     title: "2iE Market",
     statusBarStyle: "default",
   },
+  icons: { icon: "/icon.jpg", apple: "/icon.jpg" },
   formatDetection: { telephone: false },
   // Next 16 n'émet plus que `mobile-web-app-capable` : Safari a besoin de la
   // variante `apple-` pour ouvrir l'app installée en plein écran.
@@ -41,6 +43,13 @@ export const metadata: Metadata = {
     siteName: "2iE Market",
     title: "2iE Market — la marketplace du campus",
     description: "Les commerçants de 2iE, réunis au même endroit.",
+    images: [{ url: "/logo.jpg", width: 2048, height: 2048, alt: "2iE Market" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "2iE Market — la marketplace du campus",
+    description: "Les commerçants de 2iE, réunis au même endroit.",
+    images: ["/logo.jpg"],
   },
 };
 
@@ -68,11 +77,23 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ThemeProvider>
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-stone-50/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
           <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-3">
-            <Link href="/" className="flex items-center gap-2 font-bold text-teal-800">
-              <span className="grid size-9 place-items-center rounded-xl bg-teal-700 text-sm text-white">
-                2iE
-              </span>
-              <span className="text-lg tracking-tight">Market</span>
+            <Link href="/" aria-label="2iE Market — accueil" className="flex items-center">
+              <Image
+                src="/logo-horizontal.jpg"
+                alt="2iE Market"
+                width={344}
+                height={192}
+                priority
+                className="h-10 w-auto rounded-lg dark:hidden"
+              />
+              <Image
+                src="/logo-dark.jpg"
+                alt="2iE Market"
+                width={192}
+                height={192}
+                priority
+                className="hidden h-10 w-auto rounded-lg dark:block"
+              />
             </Link>
 
             {/* Ordinateur : liens à plat puis actions rapides (panier, messages, compte).
@@ -116,6 +137,22 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <main className="mx-auto w-full min-w-0 max-w-6xl flex-1 px-4 py-6">{children}</main>
 
         <footer className="border-t border-slate-200 px-4 py-8 text-center text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+          <Link href="/" aria-label="2iE Market — accueil" className="mx-auto mb-4 flex w-fit items-center">
+            <Image
+              src="/logo-horizontal.jpg"
+              alt="2iE Market"
+              width={344}
+              height={192}
+              className="h-12 w-auto rounded-lg dark:hidden"
+            />
+            <Image
+              src="/logo-dark.jpg"
+              alt="2iE Market"
+              width={192}
+              height={192}
+              className="hidden h-12 w-auto rounded-lg dark:block"
+            />
+          </Link>
           <p>2iE Market — projet étudiant de l'Institut 2iE, Ouagadougou.</p>
           <p className="mt-1">
             Paiement en ligne sécurisé · Orange Money, Moov Money, Wave et carte bancaire.

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { VendorSignupHighlights } from "@/components/vendor-signup-highlights";
 import { getCurrentUser } from "@/lib/auth";
@@ -42,21 +43,24 @@ export default async function RegisterPage({
     <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50 py-12 px-4 sm:px-6 lg:px-8 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
       <div className="mx-auto max-w-md">
         <div className="text-center">
-          <div className="mx-auto h-14 w-14 rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-teal-500/30">
-            <svg
-              className="h-8 w-8 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
-              />
-            </svg>
-          </div>
+          <Link href="/" aria-label="2iE Market — accueil" className="mx-auto flex w-fit">
+            <Image
+              src="/logo.jpg"
+              alt="2iE Market"
+              width={192}
+              height={192}
+              priority
+              className="h-24 w-24 rounded-xl object-cover dark:hidden"
+            />
+            <Image
+              src="/logo-dark.jpg"
+              alt="2iE Market"
+              width={192}
+              height={192}
+              priority
+              className="hidden h-24 w-24 rounded-xl object-cover dark:block"
+            />
+          </Link>
           <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             {onCodeStep ? "Vérifie ton email" : "Créer un compte"}
           </h1>

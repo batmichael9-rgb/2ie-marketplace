@@ -32,9 +32,9 @@
       "purpose": "maskable"
     },
     {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/icon.jpg",
+      "sizes": "2048x2048",
+      "type": "image/jpeg",
       "purpose": "any"
     }
   ]

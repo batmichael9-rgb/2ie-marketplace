@@ -11,7 +11,7 @@
  * l'ancien cache chez les visiteurs.
  */
 
-const CACHE_VERSION = "2ie-market-v2";
+const CACHE_VERSION = "2ie-market-v3";
 const OFFLINE_URL = "/offline.html";
 // En développement, on n'intercepte aucune requête : le cache servirait des
 // chunks obsolètes et casserait le HMR. Les notifications Push restent actives.
@@ -20,7 +20,7 @@ const IS_DEV_HOST =
 const PRECACHE = [
   OFFLINE_URL,
   "/manifest.json",
-  "/icon.svg",
+  "/icon.jpg",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
   "/icons/maskable-512.png",
@@ -80,7 +80,7 @@ self.addEventListener("fetch", (event) => {
     url.pathname.startsWith("/_next/static/") ||
     url.pathname.startsWith("/icons/") ||
     url.pathname.startsWith("/produits/") ||
-    url.pathname === "/icon.svg";
+    url.pathname === "/icon.jpg";
 
   if (isStatic) {
     event.respondWith(
