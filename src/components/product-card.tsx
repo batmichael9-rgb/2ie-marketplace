@@ -27,32 +27,45 @@ export type ProductCardData = {
 export function ProductCard({ product }: { product: ProductCardData }) {
   const image = product.images[0]?.url ?? "/produits/caracolo.svg";
 
+  const outOfStock =
+    product.stockMode === "OUT_OF_STOCK" ||
+    (product.stockMode === "TRACKED" && product.stockQty <= 0);
+
+  // Un seul statut sur la photo, du plus bloquant au moins : fermé, épuisé,
+  // puis réservable. Le badge de stock détaillé reste sous le prix.
+  const status = !product.vendor.isOpen
+    ? { label: "Fermé", tone: "bg-red-600 text-white" }
+    : outOfStock
+      ? { label: "Épuisé", tone: "bg-slate-900/80 text-white" }
+      : product.isReservable
+        ? { label: "Réservable", tone: "bg-white/90 text-teal-800" }
+        : null;
+
   return (
     <Link
       href={`/p/${product.slug}`}
-      className="card group flex min-w-0 flex-col overflow-hidden transition-shadow hover:shadow-md"
+      className="card group flex h-full w-full min-w-0 flex-col overflow-hidden transition-shadow hover:shadow-md"
     >
-      <div className="relative w-full h-32 sm:h-40 overflow-hidden bg-slate-100 dark:bg-slate-800">
+      <div className="relative w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={image}
           alt={product.name}
           loading="lazy"
-          className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
+          className="aspect-[4/3] w-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
         />
-        {product.isReservable ? (
-          <span className="badge absolute left-1.5 top-1.5 px-2 py-0.5 text-[10px] bg-white/90 text-teal-800 shadow-sm">
-            Réservable
-          </span>
-        ) : null}
-        {!product.vendor.isOpen ? (
-          <span className="badge absolute right-1.5 top-1.5 bg-red-600 px-2 py-0.5 text-[10px] text-white shadow-sm">
-            Fermé actuellement
-          </span>
+        {status ? (
+          <div className="absolute inset-x-0 top-0 flex flex-wrap items-start gap-1 p-2">
+            <span
+              className={`badge px-2 py-0.5 text-[10px] leading-tight shadow-sm ${status.tone}`}
+            >
+              {status.label}
+            </span>
+          </div>
         ) : null}
       </div>
 
-      <div className="flex flex-1 flex-col gap-1 p-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-1 p-3">
         <h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100">
           {product.name}
         </h3>
@@ -62,17 +75,17 @@ export function ProductCard({ product }: { product: ProductCardData }) {
         </p>
         <CampusBadge
           campus={product.vendor.campus}
-          className="self-start px-2 py-0.5 text-[10px]"
+          className="max-w-full truncate self-start px-2 py-0.5 text-[10px] leading-tight"
         />
 
         <div className="mt-1 flex items-baseline gap-2">
-          <span className="text-sm font-bold text-slate-900 sm:text-base dark:text-slate-100">
+          <span className="truncate text-sm font-bold text-slate-900 sm:text-base dark:text-slate-100">
             {formatXof(product.priceXof)}
           </span>
         </div>
 
         <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-2">
-          <StockBadge product={product} className="px-2 py-0.5 text-[10px]" />
+          <StockBadge product={product} className="px-2 py-0.5 text-[10px] leading-tight" />
           {product.rating.count > 0 ? (
             <Stars
               value={product.rating.average}
@@ -80,7 +93,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
               size="text-[10px]"
             />
           ) : (
-            <span className="badge px-2 py-0.5 text-[10px] bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+            <span className="badge px-2 py-0.5 text-[10px] leading-tight bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
               ★ Nouveau
             </span>
           )}

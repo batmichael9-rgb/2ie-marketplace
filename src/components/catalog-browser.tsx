@@ -170,7 +170,7 @@ export function CatalogBrowser({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="w-full min-w-0 max-w-full space-y-5">
       <section className="w-full overflow-hidden rounded-3xl bg-gradient-to-br from-teal-800 via-teal-700 to-emerald-600 px-5 py-7 text-white">
         {children}
 
@@ -264,7 +264,7 @@ export function CatalogBrowser({
         </div>
       </section>
 
-      <div className="grid gap-5 lg:grid-cols-[250px_minmax(0,1fr)]">
+      <div className="grid w-full min-w-0 gap-5 lg:grid-cols-[250px_minmax(0,1fr)]">
         {/* Barre latérale verticale défilante : toutes les catégories (desktop). */}
         <aside className="hidden lg:block">
           <div className="sticky top-20 max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -276,7 +276,7 @@ export function CatalogBrowser({
           </div>
         </aside>
 
-        <div className="space-y-5">
+        <div className="w-full min-w-0 space-y-5">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
@@ -304,11 +304,11 @@ export function CatalogBrowser({
                     : "Les mieux notés et les plus récents du campus"}
                 </p>
               </div>
-              <div className="flex snap-x gap-3 overflow-x-auto pb-2">
+              <div className="flex w-full min-w-0 gap-3 overflow-x-auto pb-2 snap-x snap-mandatory">
                 {recommended.map((product) => (
                   <div
                     key={product.id}
-                    className="w-40 shrink-0 snap-start sm:w-44"
+                    className="w-[46vw] sm:w-56 shrink-0 snap-start"
                   >
                     <ProductCard product={product} />
                   </div>
@@ -394,7 +394,7 @@ export function CatalogBrowser({
                       autre campus ou reformule ta demande.
                     </p>
                   ) : (
-                    <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                    <div className="mt-2 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                       {aiProducts.map((product) => (
                         <ProductCard key={product.id} product={product} />
                       ))}
@@ -442,9 +442,9 @@ export function CatalogBrowser({
                   ) : null}
                 </div>
               ) : (
-                <div className="flex flex-wrap gap-3">
+                <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
                   {results.map((card) => (
-                    <div key={card.slug} className="w-40 shrink-0 snap-start sm:w-44">
+                    <div key={card.slug} className="min-w-0">
                       <ProductCard product={card} />
                     </div>
                   ))}
