@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
-/* Mode sombre piloté par la classe `.dark` sur <html> (Tailwind v4).
-   Équivalent de `darkMode: "class"` : ThemeProvider ajoute/retire la classe
-   selon « clair », « sombre » ou « système ». */
+/* Thème clair imposé sur toute l'application.
+
+   Le mode sombre n'est plus appliqué : aucune classe `.dark` n'est ajoutée et
+   le thème `prefers-color-scheme: dark` de l'appareil est ignoré. La variante
+   reste déclarée pour que les classes `dark:` déjà présentes dans les
+   composants ne basculent pas sur la préférence système de Tailwind v4, mais
+   elle ne s'active jamais sans la classe `.dark`. */
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
@@ -15,6 +19,15 @@
 }
 
 @layer base {
+  /* `color-scheme: light` empêche Chrome, Safari, Android et iOS d'inverser
+     automatiquement les couleurs des champs de formulaire, des menus
+     déroulants et des barres de défilement lorsque l'appareil est en mode
+     sombre (`prefers-color-scheme: dark`). */
+  :root,
+  html {
+    color-scheme: light;
+  }
+
   html {
     @apply w-full max-w-full overflow-x-hidden;
     -webkit-tap-highlight-color: transparent;
@@ -27,6 +40,34 @@
 
   ::selection {
     @apply bg-teal-200;
+  }
+
+  /* Sécurité explicite pour tous les champs de saisie : fond clair, texte
+     foncé et placeholder gris, quel que soit le thème de l'appareil. */
+  input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  textarea,
+  select {
+    @apply bg-white text-slate-900 placeholder:text-slate-400;
+    color-scheme: light;
+  }
+
+  select option {
+    background-color: #ffffff;
+    color: #0f172a;
+  }
+
+  /* Remplissage automatique du navigateur : conserve le fond blanc et le
+     texte lisible au lieu du fond bleu/jaune et du texte clair par défaut. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-text-fill-color: #0f172a !important;
+    caret-color: #0f172a;
+    -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+    box-shadow: 0 0 0 1000px #ffffff inset !important;
   }
 
   /* Les cartes sont le conteneur principal de contenu : on ajuste les tons de

@@ -19,7 +19,7 @@ type SearchParams = {
 };
 
 const inputClass =
-  "w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all bg-white";
+  "w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all bg-white text-slate-900 placeholder:text-slate-400";
 
 export default async function RegisterPage({
   searchParams,
