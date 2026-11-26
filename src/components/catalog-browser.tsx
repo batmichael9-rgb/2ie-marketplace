@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronRight, LayoutGrid, Search, X } from "lucide-react";
 import { CATEGORIES, type CatalogCategory } from "@/lib/categories";
 import { CAMPUSES, CAMPUS_LABELS, matchesSearchQuery } from "@/lib/domain";
+import { formatXof } from "@/lib/money";
 import { ProductCard, type ProductCardData } from "./product-card";
+import { ShopCard, type ShopCardData } from "./shop-card";
 
 export type CatalogCard = ProductCardData & {
   searchText: string;
@@ -13,12 +15,49 @@ export type CatalogCard = ProductCardData & {
 };
 
 type AiSearchResponse = {
-  answer: string;
-  keywords: string[];
-  categories: string[];
+  analysis: {
+    keywords: string[];
+    maxPrice: number | null;
+    onlyOpen: boolean;
+    summary: string;
+    categories: string[];
+    source: "gemini" | "local";
+  };
   products: ProductCardData[];
-  source: "gemini" | "local";
+  relaxedPrice: boolean;
 };
+
+type SearchTab = "ai" | "products" | "shops";
+
+type AiFilters = {
+  openOnly: boolean;
+  inStock: boolean;
+  maxPrice: number | null;
+  reservableOnly: boolean;
+  bestRated: boolean;
+};
+
+const EMPTY_AI_FILTERS: AiFilters = {
+  openOnly: false,
+  inStock: false,
+  maxPrice: null,
+  reservableOnly: false,
+  bestRated: false,
+};
+
+const AI_FILTER_PILLS: { id: keyof AiFilters; label: string }[] = [
+  { id: "openOnly", label: "🟢 Boutique ouverte" },
+  { id: "inStock", label: "✅ En stock" },
+  { id: "maxPrice", label: "💰 Moins de 1 500 FCFA" },
+  { id: "reservableOnly", label: "📅 Réservable" },
+  { id: "bestRated", label: "⭐ Mieux notés" },
+];
+
+const SEARCH_TABS: { id: SearchTab; label: string }[] = [
+  { id: "ai", label: "✨ Mode IA" },
+  { id: "products", label: "Produits" },
+  { id: "shops", label: "Boutiques" },
+];
 
 const CAMPUS_COOKIE = "2ie-market-campus";
 
@@ -42,6 +81,7 @@ export function CatalogBrowser({
   initialCategory,
   initialCampus,
   cards,
+  shops = [],
   recommended = [],
   recommendedPersonalized = false,
   children,
@@ -50,6 +90,7 @@ export function CatalogBrowser({
   initialCategory?: string;
   initialCampus?: string;
   cards: CatalogCard[];
+  shops?: ShopCardData[];
   recommended?: ProductCardData[];
   recommendedPersonalized?: boolean;
   children: ReactNode;
@@ -63,13 +104,16 @@ export function CatalogBrowser({
   );
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // Recherche intelligente : le mode est explicite pour ne pas envoyer chaque
-  // frappe à l'API. Les résultats classés et la phrase de l'assistant arrivent
-  // après un court debounce.
-  const [aiMode, setAiMode] = useState(false);
+  // Trois onglets de navigation : IA, produits et boutiques du campus.
+  const [tab, setTab] = useState<SearchTab>("products");
+
+  // Deep Search : l'analyse d'intention part après un court debounce pour ne
+  // pas envoyer chaque frappe à l'API.
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<AiSearchResponse | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [aiFilters, setAiFilters] = useState<AiFilters>(EMPTY_AI_FILTERS);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const trimmedQuery = query.trim();
 
@@ -92,7 +136,7 @@ export function CatalogBrowser({
   }, [initialCampus]);
 
   useEffect(() => {
-    if (!aiMode || trimmedQuery.length < 3) {
+    if (tab !== "ai" || trimmedQuery.length < 3) {
       setAiResult(null);
       setAiError(null);
       setAiLoading(false);
@@ -107,7 +151,7 @@ export function CatalogBrowser({
         const response = await fetch("/api/ai/search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: trimmedQuery }),
+          body: JSON.stringify({ query: trimmedQuery, filters: aiFilters }),
           signal: controller.signal,
         });
         const data = (await response.json()) as AiSearchResponse & { error?: string };
@@ -132,10 +176,23 @@ export function CatalogBrowser({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [aiMode, trimmedQuery]);
+  }, [tab, trimmedQuery, aiFilters]);
 
   const aiProducts = (aiResult?.products ?? []).filter(
     (product) => !campus || product.vendor.campus === campus,
+  );
+
+  // L'annuaire des boutiques vit en mémoire : recherche et campus instantanés.
+  const shopResults = useMemo(
+    () =>
+      shops.filter((shop) => {
+        if (campus && shop.campus !== campus) return false;
+        return matchesSearchQuery(
+          `${shop.shopName} ${shop.description ?? ""} ${shop.roomNumber ?? ""}`,
+          query,
+        );
+      }),
+    [shops, campus, query],
   );
 
   // Le catalogue est déjà en mémoire : chaque filtre s'applique sans aller-retour
@@ -169,6 +226,16 @@ export function CatalogBrowser({
     setDrawerOpen(false);
   }
 
+  // Les pilules sont cumulables ; celle du budget bascule entre 1 500 FCFA et
+  // aucun prix maximum. Chaque changement relance Deep Search côté serveur.
+  function toggleAiFilter(id: keyof AiFilters) {
+    setAiFilters((current) =>
+      id === "maxPrice"
+        ? { ...current, maxPrice: current.maxPrice === null ? 1_500 : null }
+        : { ...current, [id]: !current[id] },
+    );
+  }
+
   return (
     <div className="w-full min-w-0 max-w-full space-y-5">
       <section className="w-full overflow-hidden rounded-3xl bg-gradient-to-br from-teal-800 via-teal-700 to-emerald-600 px-5 py-7 text-white">
@@ -186,11 +253,19 @@ export function CatalogBrowser({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={
-                aiMode
-                  ? "Ex. : de quoi réviser la nuit, pc pour autocad…"
-                  : "Rechercher un produit, une marque, un service…"
+                tab === "ai"
+                  ? "Décris ce qu'il te faut : « chawarma à moins de 1500f »…"
+                  : tab === "shops"
+                    ? "Rechercher une boutique, un vendeur…"
+                    : "Rechercher un produit, une marque, un service…"
               }
-              aria-label={aiMode ? "Décrire une recherche intelligente" : "Rechercher un produit"}
+              aria-label={
+                tab === "ai"
+                  ? "Décrire une recherche intelligente"
+                  : tab === "shops"
+                    ? "Rechercher une boutique"
+                    : "Rechercher un produit"
+              }
               autoComplete="off"
               className="w-full rounded-xl border-0 bg-white/95 py-2.5 pl-11 pr-10 text-base text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/60"
             />
@@ -248,48 +323,64 @@ export function CatalogBrowser({
           ) : null}
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setAiMode((current) => !current)}
-            aria-pressed={aiMode}
-            className={`badge border px-3 py-1.5 font-semibold transition-colors ${
-              aiMode
-                ? "border-white bg-white text-teal-800"
-                : "border-amber-200/60 bg-amber-300/15 text-amber-50 hover:bg-amber-300/25"
-            }`}
-          >
-            ✨ Recherche IA{aiMode ? " · activée" : ""}
-          </button>
+        <div
+          role="tablist"
+          aria-label="Type de recherche"
+          className="mt-3 grid grid-cols-3 gap-1 rounded-2xl bg-white/15 p-1"
+        >
+          {SEARCH_TABS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === item.id}
+              onClick={() => setTab(item.id)}
+              className={`rounded-xl px-2 py-2 text-xs font-semibold transition-colors sm:text-sm ${
+                tab === item.id
+                  ? "bg-white text-teal-800 shadow-sm"
+                  : "text-white/85 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
       </section>
 
-      <div className="grid w-full min-w-0 gap-5 lg:grid-cols-[250px_minmax(0,1fr)]">
+      <div
+        className={`grid w-full min-w-0 gap-5 ${
+          tab === "products" ? "lg:grid-cols-[250px_minmax(0,1fr)]" : ""
+        }`}
+      >
         {/* Barre latérale verticale défilante : toutes les catégories (desktop). */}
-        <aside className="hidden lg:block">
-          <div className="sticky top-20 max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <CategoryList
-              active={category}
-              onSelect={selectCategory}
-              heading="Toutes les catégories"
-            />
-          </div>
-        </aside>
+        {tab === "products" ? (
+          <aside className="hidden lg:block">
+            <div className="sticky top-20 max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <CategoryList
+                active={category}
+                onSelect={selectCategory}
+                heading="Toutes les catégories"
+              />
+            </div>
+          </aside>
+        ) : null}
 
         <div className="w-full min-w-0 space-y-5">
-          <button
-            type="button"
-            onClick={() => setDrawerOpen(true)}
-            className="btn-secondary w-full justify-between lg:hidden"
-          >
-            <span className="flex items-center gap-2">
-              <LayoutGrid className="size-4" aria-hidden />
-              Toutes les catégories
-            </span>
-            <ChevronRight className="size-4" aria-hidden />
-          </button>
+          {tab === "products" ? (
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(true)}
+              className="btn-secondary w-full justify-between lg:hidden"
+            >
+              <span className="flex items-center gap-2">
+                <LayoutGrid className="size-4" aria-hidden />
+                Toutes les catégories
+              </span>
+              <ChevronRight className="size-4" aria-hidden />
+            </button>
+          ) : null}
 
-          {!aiMode && recommended.length > 0 ? (
+          {tab === "products" && recommended.length > 0 ? (
             <section aria-labelledby="recommended-heading">
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
                 <h2
@@ -317,99 +408,204 @@ export function CatalogBrowser({
             </section>
           ) : null}
 
-          {aiMode ? (
-            <section className="card p-4" aria-live="polite">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-base font-bold dark:text-slate-100">
-                  ✨ Assistant 2iE
-                </h2>
-                {aiResult ? (
-                  <span className="badge bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300">
-                    {aiResult.source === "gemini" ? "Gemini" : "Moteur local gratuit"}
-                  </span>
-                ) : null}
-              </div>
-
+          {tab === "ai" ? (
+            <section aria-live="polite" className="space-y-4">
               {trimmedQuery.length < 3 ? (
-                <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
-                  Décris ce qu’il te faut comme à un ami : « de quoi réviser la nuit », « pc
-                  pour autocad », « manger vite entre deux cours »…
-                </p>
+                <div className="card p-5">
+                  <h2 className="text-base font-bold dark:text-slate-100">✨ Mode IA</h2>
+                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                    Décris ce qu’il te faut comme à un ami : « chawarma à moins de 1500f »,
+                    « de quoi réviser la nuit », « pc pour autocad », « manger vite ce midi »…
+                    L’IA extrait les mots-clés, ton budget et les boutiques ouvertes.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {["chawarma à moins de 1500f", "stylo bic", "chargeur disponible", "de quoi réviser la nuit"].map(
+                      (example) => (
+                        <button
+                          key={example}
+                          type="button"
+                          onClick={() => setQuery(example)}
+                          className="badge bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                        >
+                          {example}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                </div>
               ) : aiLoading ? (
-                <p className="mt-3 animate-pulse text-sm text-slate-600 dark:text-slate-300">
-                  ✨ L’assistant parcourt le catalogue du campus…
-                </p>
+                <div className="card p-5">
+                  <p className="animate-pulse text-sm text-slate-600 dark:text-slate-300">
+                    ✨ Deep Search analyse ta demande et parcourt le catalogue du campus…
+                  </p>
+                </div>
               ) : aiError ? (
-                <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">
+                <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">
                   {aiError}
                 </p>
               ) : aiResult ? (
                 <>
-                  <p className="mt-3 rounded-xl bg-teal-50 px-3 py-2 text-sm text-teal-900 dark:bg-teal-500/10 dark:text-teal-200">
-                    {aiResult.answer}
-                  </p>
-
-                  {aiResult.keywords.length > 0 ? (
-                    <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                        Mots-clés :
-                      </span>
-                      {aiResult.keywords.slice(0, 10).map((keyword) => (
-                        <button
-                          key={keyword}
-                          type="button"
-                          onClick={() => setQuery(keyword)}
-                          className="badge bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                        >
-                          {keyword}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  {aiResult.categories.length > 0 ? (
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                        Catégories :
-                      </span>
-                      {aiResult.categories.map((slug) => (
-                        <span
-                          key={slug}
-                          className="badge bg-teal-50 text-teal-800 dark:bg-teal-500/10 dark:text-teal-300"
-                        >
-                          {CATEGORIES.find((item) => item.slug === slug)?.name ?? slug}
+                  <div className="overflow-hidden rounded-2xl border border-teal-200 dark:border-teal-900">
+                    <div className="flex flex-wrap items-center justify-between gap-2 bg-gradient-to-r from-teal-700 to-emerald-600 px-4 py-3 text-white">
+                      <h2 className="text-base font-bold">✨ Résultats de Deep Search</h2>
+                      <div className="flex items-center gap-2">
+                        <span className="badge bg-white/20 text-white">
+                          {aiResult.analysis.source === "gemini"
+                            ? "Gemini"
+                            : "Repli local"}
                         </span>
-                      ))}
+                        <button
+                          type="button"
+                          onClick={() => setDetailsOpen((current) => !current)}
+                          aria-expanded={detailsOpen}
+                          aria-controls="deep-search-details"
+                          className="inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/25"
+                        >
+                          Détails <span aria-hidden>{detailsOpen ? "⌃" : "⌄"}</span>
+                        </button>
+                      </div>
                     </div>
+
+                    {detailsOpen ? (
+                      <div
+                        id="deep-search-details"
+                        className="space-y-2 bg-teal-50/70 px-4 py-3 text-sm text-teal-950 dark:bg-teal-950/40 dark:text-teal-50"
+                      >
+                        <p>{aiResult.analysis.summary}</p>
+                        {aiResult.analysis.keywords.length > 0 ? (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-xs font-semibold opacity-70">Mots-clés :</span>
+                            {aiResult.analysis.keywords.slice(0, 10).map((keyword) => (
+                              <span
+                                key={keyword}
+                                className="badge bg-white/70 text-teal-900 dark:bg-teal-500/10 dark:text-teal-200"
+                              >
+                                {keyword}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                        <p className="text-xs">
+                          Budget détecté :{" "}
+                          <strong>
+                            {aiResult.analysis.maxPrice
+                              ? formatXof(aiResult.analysis.maxPrice)
+                              : "aucun budget précisé"}
+                          </strong>
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="card flex flex-wrap items-center gap-2 p-3">
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      Filtrer par :
+                    </span>
+                    {AI_FILTER_PILLS.map((pill) => {
+                      const active = Boolean(aiFilters[pill.id]);
+                      return (
+                        <button
+                          key={pill.id}
+                          type="button"
+                          onClick={() => toggleAiFilter(pill.id)}
+                          aria-pressed={active}
+                          className={`badge border px-3 py-1.5 transition-colors ${
+                            active
+                              ? "border-teal-700 bg-teal-700 text-white"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                          }`}
+                        >
+                          {pill.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {aiResult.relaxedPrice ? (
+                    <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                      Aucun article dans ce budget — voici les alternatives les plus proches
+                      du catalogue.
+                    </p>
                   ) : null}
 
-                  <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
-                    {aiProducts.length} article{aiProducts.length > 1 ? "s" : ""} classé
-                    {aiProducts.length > 1 ? "s" : ""} par pertinence
-                  </p>
-
-                  {aiProducts.length === 0 ? (
-                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                      Aucun article disponible ne correspond pour l’instant. Essaie avec un
-                      autre campus ou reformule ta demande.
-                    </p>
-                  ) : (
-                    <div className="mt-2 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                      {aiProducts.map((product) => (
-                        <ProductCard key={product.id} product={product} />
-                      ))}
+                  <div>
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-base font-bold dark:text-slate-100">
+                        {aiProducts.length} article{aiProducts.length > 1 ? "s" : ""}
+                        <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400">
+                          {aiFilters.bestRated ? "mieux notés" : "classés par pertinence"}
+                        </span>
+                      </p>
+                      {Object.values(aiFilters).some(Boolean) ? (
+                        <button
+                          type="button"
+                          onClick={() => setAiFilters(EMPTY_AI_FILTERS)}
+                          className="text-xs font-semibold text-teal-700 hover:underline dark:text-teal-400"
+                        >
+                          Effacer les filtres
+                        </button>
+                      ) : null}
                     </div>
-                  )}
+
+                    {aiProducts.length === 0 ? (
+                      <div className="card p-8 text-center">
+                        <p className="font-semibold">Aucun article trouvé</p>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                          Reformule ta demande, change de campus ou retire un filtre.
+                        </p>
+                        {Object.values(aiFilters).some(Boolean) ? (
+                          <button
+                            type="button"
+                            onClick={() => setAiFilters(EMPTY_AI_FILTERS)}
+                            className="btn-secondary mt-4"
+                          >
+                            Effacer les filtres
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+                        {aiProducts.map((product) => (
+                          <div key={product.id} className="min-w-0">
+                            <ProductCard product={product} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </>
               ) : null}
+            </section>
+          ) : tab === "shops" ? (
+            <section>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-base font-bold dark:text-slate-100">
+                  Boutiques du campus
+                  <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400">
+                    {shopResults.length} boutique{shopResults.length > 1 ? "s" : ""}
+                  </span>
+                </h2>
+                {trimmedQuery ? (
+                  <p className="text-xs text-slate-500">Boutiques pour « {trimmedQuery} »</p>
+                ) : null}
+              </div>
 
-              <button
-                type="button"
-                onClick={() => setAiMode(false)}
-                className="mt-4 text-xs font-semibold text-teal-700 hover:underline dark:text-teal-400"
-              >
-                ← Revenir au catalogue classique
-              </button>
+              {shopResults.length === 0 ? (
+                <div className="card p-10 text-center">
+                  <p className="text-lg font-semibold">Aucune boutique trouvée</p>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                    Essaie un autre nom ou change de campus.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+                  {shopResults.map((shop) => (
+                    <div key={shop.slug} className="min-w-0">
+                      <ShopCard shop={shop} />
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
           ) : (
             <section>

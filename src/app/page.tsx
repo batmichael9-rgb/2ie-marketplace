@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { CatalogBrowser, type CatalogCard } from "@/components/catalog-browser";
+import type { ShopCardData } from "@/components/shop-card";
 import { getCurrentUser } from "@/lib/auth";
 import { CAMPUSES } from "@/lib/domain";
 import { db } from "@/lib/db";
@@ -71,6 +72,39 @@ export default async function CatalogPage({
     searchText: `${product.name} ${product.description}`,
   }));
 
+  const vendors = await db.vendorProfile.findMany({
+    where: { isActive: true, products: { some: { isActive: true } } },
+    select: {
+      slug: true,
+      shopName: true,
+      description: true,
+      bannerUrl: true,
+      logoUrl: true,
+      campus: true,
+      roomNumber: true,
+      isOpen: true,
+      ratingAvg: true,
+      ratingCount: true,
+      _count: { select: { products: { where: { isActive: true } } } },
+    },
+    orderBy: [{ isOpen: "desc" }, { ratingAvg: "desc" }],
+    take: 100,
+  });
+
+  const shops: ShopCardData[] = vendors.map((vendor) => ({
+    slug: vendor.slug,
+    shopName: vendor.shopName,
+    description: vendor.description,
+    bannerUrl: vendor.bannerUrl,
+    logoUrl: vendor.logoUrl,
+    campus: vendor.campus,
+    roomNumber: vendor.roomNumber,
+    isOpen: vendor.isOpen,
+    ratingAvg: vendor.ratingAvg,
+    ratingCount: vendor.ratingCount,
+    productCount: vendor._count.products,
+  }));
+
   const user = await getCurrentUser();
   const recommended = await getRecommendedProducts(user?.id ?? null, preferredCampus);
 
@@ -80,6 +114,7 @@ export default async function CatalogPage({
       initialCategory={categorie}
       initialCampus={campus}
       cards={cards}
+      shops={shops}
       recommended={recommended.products}
       recommendedPersonalized={recommended.personalized}
     >
