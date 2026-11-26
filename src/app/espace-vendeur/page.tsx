@@ -14,8 +14,8 @@ import {
   payoutMethodLabel,
   type OrderStatus,
 } from "@/lib/domain";
-import {
-  PLATFORM_FEE_PERCENT,
+import { ShareShopButton } from "@/components/share-shop-button";
+import { PLATFORM_FEE_PERCENT,
   VENDOR_NET_PERCENT,
   formatPercent,
   formatXof,
@@ -171,6 +171,8 @@ export default async function VendorDashboardPage({
     produit: "Produit introuvable dans ta boutique.",
     boutique:
       "Les informations de la boutique n'ont pas pu être enregistrées : vérifie le nom (2 à 60 caractères) et le numéro Mobile Money.",
+    banniere:
+      "L'affiche de la boutique n'a pas pu être envoyée : JPG, PNG, WebP ou GIF, 5 Mo maximum.",
     "produit-commandes":
       "Ce produit figure dans des commandes : il ne peut pas être supprimé sans effacer l'historique. Passe-le en « En rupture » pour le retirer du catalogue.",
     commande: "Commande introuvable dans ta boutique.",
@@ -213,12 +215,23 @@ export default async function VendorDashboardPage({
               <p className="mt-2 text-xs text-teal-100">Retrait : {vendor.roomNumber}</p>
             ) : null}
           </div>
-          <Link
-            href="/espace-vendeur/produits/nouveau"
-            className="btn bg-white text-teal-800 hover:bg-teal-50"
-          >
-            + Ajouter un produit
-          </Link>
+          <div className="flex flex-col items-stretch gap-2 sm:items-end">
+            <div className="flex flex-wrap gap-2">
+              <ShareShopButton slug={vendor.slug} shopName={vendor.shopName} />
+              <Link
+                href="/espace-vendeur/produits/nouveau"
+                className="btn bg-white text-teal-800 hover:bg-teal-50"
+              >
+                + Ajouter un produit
+              </Link>
+            </div>
+            <Link
+              href={`/boutique/${vendor.slug}`}
+              className="text-xs text-teal-100 underline hover:text-white"
+            >
+              Voir ma vitrine publique
+            </Link>
+          </div>
         </div>
 
         <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -527,7 +540,11 @@ export default async function VendorDashboardPage({
       {/* ------------------------------------------------------------------ */}
       {/* Informations de la boutique                                        */}
       {/* ------------------------------------------------------------------ */}
-      <details id="boutique" className="card p-5" open={params.erreur === "boutique"}>
+      <details
+        id="boutique"
+        className="card p-5"
+        open={params.erreur === "boutique" || params.erreur === "banniere"}
+      >
         <summary className="cursor-pointer font-semibold text-teal-800">
           Modifier les informations de la boutique
         </summary>
@@ -602,6 +619,37 @@ export default async function VendorDashboardPage({
               defaultValue={vendor.roomNumber ?? ""}
               placeholder="Bât. B, ch. 214"
             />
+          </div>
+
+          <div>
+            <label htmlFor="banner" className="label">
+              Affiche / bannière de la boutique{" "}
+              <span className="font-normal text-slate-400">(facultatif)</span>
+            </label>
+            {vendor.bannerUrl ? (
+              <div className="mb-2 flex items-center gap-3 rounded-xl bg-slate-50 p-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={vendor.bannerUrl}
+                  alt=""
+                  className="h-16 w-28 rounded-lg border border-slate-200 object-cover"
+                />
+                <p className="text-xs text-slate-600">
+                  Affiche actuelle. Choisis un nouveau fichier pour la remplacer.
+                </p>
+              </div>
+            ) : null}
+            <input
+              id="banner"
+              name="banner"
+              type="file"
+              accept="image/*"
+              className="input py-2 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-teal-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-teal-800"
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Elle s&apos;affiche en tête de ta vitrine et sert d&apos;aperçu quand tu partages le
+              lien de ta boutique sur WhatsApp. JPG, PNG, WebP ou GIF, 5 Mo maximum.
+            </p>
           </div>
 
           <div className="space-y-3 rounded-xl border border-slate-200 p-3">

@@ -12,13 +12,13 @@ import { formatXof } from "@/lib/money";
  * n'est inclus qu'une seule fois dans le message partagé.
  */
 export function ShareWhatsAppButton({
-  productId,
+  slug,
   name,
   priceXof,
   className = "btn-secondary w-full",
   label = "Partager sur WhatsApp",
 }: {
-  productId: string;
+  slug: string;
   name: string;
   priceXof: number;
   className?: string;
@@ -32,7 +32,9 @@ export function ShareWhatsAppButton({
   }, []);
 
   const base = origin ?? process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "") ?? "";
-  const productUrl = `${base}/commander/${productId}`;
+  // On partage la fiche produit (et non le tunnel de commande) : c'est elle qui
+  // porte l'aperçu riche Open Graph affiché par WhatsApp.
+  const productUrl = `${base}/p/${slug}`;
   const message = `${name} — ${formatXof(priceXof)} sur 2iE Market : ${productUrl}`;
 
   return (

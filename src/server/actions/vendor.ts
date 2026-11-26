@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { generateShareCode, slugify } from "@/lib/domain";
 import { notifyUserSafely } from "@/lib/push";
 import { restockOrder } from "@/lib/stock";
-import { ImageUploadError, uploadProductImage } from "@/lib/storage";
+import { ImageUploadError, uploadProductImage, uploadShopBanner } from "@/lib/storage";
 import {
   deleteProductSchema,
   payoutAccountsSchema,
@@ -47,6 +47,21 @@ export async function updateVendorProfileAction(formData: FormData) {
 
   const data = parsed.data;
 
+  // Affiche publicitaire : facultative, l'absence de fichier conserve l'actuelle.
+  const bannerField = formData.get("banner");
+  const banner = bannerField instanceof File && bannerField.size > 0 ? bannerField : null;
+  let bannerUrl: string | null = null;
+  if (banner) {
+    try {
+      bannerUrl = await uploadShopBanner(banner);
+    } catch (error) {
+      if (!(error instanceof ImageUploadError)) {
+        console.error("Envoi de l'affiche boutique :", error);
+      }
+      redirect("/espace-vendeur?erreur=banniere#boutique");
+    }
+  }
+
   await db.vendorProfile.update({
     where: { id: vendor.id },
     data: {
@@ -57,6 +72,7 @@ export async function updateVendorProfileAction(formData: FormData) {
       acceptsCashPayment: formData.get("acceptsCashPayment") === "on",
       isOpen: data.isOpen,
       orderCutoffTime: data.orderCutoffTime || null,
+      ...(bannerUrl ? { bannerUrl } : {}),
     },
   });
 

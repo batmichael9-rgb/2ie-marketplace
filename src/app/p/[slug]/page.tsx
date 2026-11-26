@@ -13,6 +13,7 @@ import { db } from "@/lib/db";
 import { formatDate, mobileMoneyLabel } from "@/lib/domain";
 import { formatXof, getMinOrderQuantity } from "@/lib/money";
 import { recordPreferenceSignal } from "@/lib/preferences";
+import { ogImageUrl } from "@/lib/seo";
 import { startConversationAction } from "@/server/actions/messages";
 
 export async function generateMetadata({
@@ -23,17 +24,36 @@ export async function generateMetadata({
   const { slug } = await params;
   const product = await db.product.findUnique({
     where: { slug },
-    include: { vendor: { select: { shopName: true } } },
+    include: {
+      images: { orderBy: { position: "asc" }, take: 1 },
+      vendor: { select: { shopName: true, slug: true } },
+    },
   });
 
   if (!product) return { title: "Produit introuvable" };
 
-  const description = `${formatXof(product.priceXof)} · ${product.vendor.shopName} · ${product.description.slice(0, 120)}`;
+  const title = `${product.name} — ${formatXof(product.priceXof)} | 2iE Market`;
+  const description = `${product.description.slice(0, 150)} · ${product.vendor.shopName}`;
+  // Photo principale si elle est servie en HTTPS ; sinon affiche générique
+  // (les images base64 ne sont pas exploitables par WhatsApp).
+  const image = ogImageUrl(product.images[0]?.url);
 
   return {
-    title: product.name,
+    title: { absolute: title },
     description,
-    openGraph: { title: product.name, description, type: "website" },
+    openGraph: {
+      type: "website",
+      title,
+      description,
+      url: `/p/${product.slug}`,
+      images: [{ url: image, alt: product.name }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [image],
+    },
   };
 }
 
@@ -251,7 +271,7 @@ export default async function ProductPage({
                 </Link>
               )}
               <ShareWhatsAppButton
-                productId={product.id}
+                slug={product.slug}
                 name={product.name}
                 priceXof={product.priceXof}
               />
@@ -274,7 +294,12 @@ export default async function ProductPage({
 
           <div className="card p-5">
             <h2 className="text-sm font-semibold text-slate-500">Vendu par</h2>
-            <p className="mt-1 text-lg font-bold">{product.vendor.shopName}</p>
+            <Link
+              href={`/boutique/${product.vendor.slug}`}
+              className="mt-1 inline-block text-lg font-bold hover:text-teal-700 hover:underline"
+            >
+              {product.vendor.shopName}
+            </Link>
             <CampusBadge campus={product.vendor.campus} className="mt-1" />
             {product.vendor.orderCutoffTime ? (
               <p className="mt-1 text-xs font-medium text-slate-600 dark:text-slate-400">

@@ -71,6 +71,9 @@ model VendorProfile {
   slug        String   @unique
   description String?
   logoUrl     String?
+  // Affiche / bannière publicitaire affichée en tête de la vitrine publique
+  // (/boutique/<slug>) et utilisée comme image d'aperçu lors du partage.
+  bannerUrl   String?
   roomNumber  String? // champ facultatif du cahier des charges
   campus      String? // Site de Ouagadougou | Site de Kamboinsé
   momoNumber  String? // ancien champ, conservé pour compatibilité (miroir du compte préféré)

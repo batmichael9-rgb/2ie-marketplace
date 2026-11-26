@@ -1,32 +1,16 @@
 import { ImageResponse } from "next/og";
-import { db } from "@/lib/db";
-import { formatXof } from "@/lib/money";
 
 export const runtime = "nodejs";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "Aperçu du produit sur 2iE Market";
 
 /**
- * Aperçu affiché par WhatsApp quand un vendeur partage /p/<slug>.
- * Sans image, un lien WhatsApp ressemble à une URL nue : l'aperçu est ce qui
- * déclenche le clic.
+ * Affiche générique servie à /og-default.png.
+ *
+ * Elle sert d'aperçu de partage quand un produit n'a pas de photo exploitable ou
+ * qu'une boutique n'a ni bannière ni logo.
  */
-export default async function OpenGraphImage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
-  const { slug } = await params;
-  const product = await db.product.findUnique({
-    where: { slug },
-    include: { vendor: { select: { shopName: true } } },
-  });
-
-  const name = product?.name ?? "2iE Market";
-  const price = product ? formatXof(product.priceXof) : "Le commerce du campus";
-  const shop = product?.vendor.shopName ?? "Institut 2iE";
-
+export async function GET() {
   return new ImageResponse(
     (
       <div
@@ -63,27 +47,16 @@ export default async function OpenGraphImage({
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          <div style={{ fontSize: 62, fontWeight: 800, lineHeight: 1.1, maxWidth: 1000 }}>
-            {name}
+          <div style={{ fontSize: 66, fontWeight: 800, lineHeight: 1.1, maxWidth: 1000 }}>
+            Le commerce du campus, en un clic
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-            <div
-              style={{
-                fontSize: 46,
-                fontWeight: 800,
-                background: "rgba(255,255,255,0.18)",
-                padding: "10px 28px",
-                borderRadius: 999,
-              }}
-            >
-              {price}
-            </div>
-            <div style={{ fontSize: 32, opacity: 0.9 }}>{shop}</div>
+          <div style={{ fontSize: 32, opacity: 0.9 }}>
+            Repas, matériel, téléphones et plus — Institut 2iE
           </div>
         </div>
 
         <div style={{ fontSize: 26, opacity: 0.85 }}>
-          Commande sur 2iE Market · Paiement à la remise · Campus 2iE
+          Commande sur 2iE Market · Paiement Mobile Money sécurisé
         </div>
       </div>
     ),

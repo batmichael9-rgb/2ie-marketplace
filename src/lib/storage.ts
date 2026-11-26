@@ -29,6 +29,15 @@ export class ImageUploadError extends Error {}
  * facultativement, SUPABASE_STORAGE_BUCKET (par défaut « products »).
  */
 export async function uploadProductImage(file: File): Promise<string> {
+  return uploadImage(file, "products");
+}
+
+/** Affiche / bannière publicitaire de la boutique (mêmes contraintes que les photos). */
+export async function uploadShopBanner(file: File): Promise<string> {
+  return uploadImage(file, "banners");
+}
+
+async function uploadImage(file: File, folder: string): Promise<string> {
   const extension = IMAGE_EXTENSIONS[file.type];
   if (!extension) {
     throw new ImageUploadError(
@@ -52,7 +61,7 @@ export async function uploadProductImage(file: File): Promise<string> {
   }
 
   const bucket = process.env.SUPABASE_STORAGE_BUCKET?.trim() || "products";
-  const objectPath = `${new Date().toISOString().slice(0, 10)}/${randomUUID()}.${extension}`;
+  const objectPath = `${folder}/${new Date().toISOString().slice(0, 10)}/${randomUUID()}.${extension}`;
   const body = Buffer.from(await file.arrayBuffer());
   const endpoint = `${supabaseUrl}/storage/v1/object/${bucket}/${objectPath}`;
 
