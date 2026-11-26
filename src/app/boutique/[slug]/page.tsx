@@ -24,7 +24,6 @@ async function getVendor(slug: string) {
       slug: true,
       description: true,
       bannerUrl: true,
-      logoUrl: true,
       campus: true,
       roomNumber: true,
       ratingAvg: true,
@@ -32,6 +31,16 @@ async function getVendor(slug: string) {
       isActive: true,
       isOpen: true,
       orderCutoffTime: true,
+      // Photo du premier produit actif : repli d'aperçu quand la boutique n'a
+      // pas de bannière HTTPS exploitable par WhatsApp.
+      products: {
+        where: { isActive: true },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          images: { orderBy: { position: "asc" }, take: 1, select: { url: true } },
+        },
+      },
     },
   });
 }
@@ -49,7 +58,9 @@ export async function generateMetadata({
   const description =
     vendor.description?.trim() ||
     `Découvre ${vendor.shopName} sur 2iE Market${vendor.campus ? ` — ${vendor.campus}` : ""}.`;
-  const image = ogImageUrl(vendor.bannerUrl || vendor.logoUrl);
+  // Bannière d'abord, puis photo du premier produit actif, puis affiche
+  // générique — toujours en URL absolue HTTPS pour le robot WhatsApp.
+  const image = ogImageUrl(vendor.bannerUrl, vendor.products[0]?.images[0]?.url);
 
   return {
     title: { absolute: `${vendor.shopName} | 2iE Market` },
@@ -142,6 +153,7 @@ export default async function BoutiquePage({
             <ShareShopButton
               slug={vendor.slug}
               shopName={vendor.shopName}
+              description={vendor.description}
               className="btn-secondary w-full sm:w-auto"
             />
           </div>

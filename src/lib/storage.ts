@@ -141,5 +141,54 @@ async function uploadImage(file: File, folder: string): Promise<string> {
     );
   }
 
+  // WhatsApp télécharge les images Open Graph sans authentification : un bucket
+  // privé renverrait 403. On s'assure qu'il est bien public (cas d'un bucket
+  // créé à la main avant cette vérification).
+  await ensurePublicBucket(supabaseUrl, serviceKey, bucket);
+
   return `${supabaseUrl}/storage/v1/object/public/${bucket}/${objectPath}`;
+}
+
+/**
+ * Force la lecture publique d'un bucket Supabase Storage.
+ *
+ * N'échoue jamais l'upload : l'URL reste renvoyée, seul un avertissement est
+ * journalisé si le réglage ne peut pas être appliqué.
+ */
+async function ensurePublicBucket(
+  supabaseUrl: string,
+  serviceKey: string,
+  bucket: string,
+): Promise<void> {
+  const authHeaders = {
+    Authorization: `Bearer ${serviceKey}`,
+    apikey: serviceKey,
+    "Content-Type": "application/json",
+  };
+
+  try {
+    const current = await fetch(`${supabaseUrl}/storage/v1/bucket/${bucket}`, {
+      headers: authHeaders,
+      cache: "no-store",
+    });
+    if (!current.ok) return;
+
+    const details = (await current.json()) as { public?: boolean } | null;
+    if (details?.public === true) return;
+
+    const update = await fetch(`${supabaseUrl}/storage/v1/bucket/${bucket}`, {
+      method: "PUT",
+      headers: authHeaders,
+      body: JSON.stringify({ public: true }),
+      cache: "no-store",
+    });
+    if (!update.ok) {
+      console.error(
+        `Bucket Supabase « ${bucket} » non public : HTTP ${update.status} —`,
+        (await update.text()) || "(réponse vide)",
+      );
+    }
+  } catch (error) {
+    console.error(`Vérification du bucket Supabase « ${bucket} » impossible :`, error);
+  }
 }

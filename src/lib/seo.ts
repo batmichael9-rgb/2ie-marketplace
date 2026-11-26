@@ -7,13 +7,14 @@ export const DEFAULT_OG_IMAGE = "/og-default.png";
  * URL absolue d'image pour les aperçus Open Graph / Twitter.
  *
  * Les crawlers (WhatsApp, X, Facebook) n'acceptent que des URL absolues en
- * HTTPS. Une image base64 (`data:`) n'est jamais partageable : on retombe alors
- * sur l'affiche générique de la marketplace.
+ * HTTPS. Les candidats sont essayés dans l'ordre (bannière, photo produit...) et
+ * le premier servi en HTTPS l'emporte ; une image base64 (`data:`) ou un chemin
+ * relatif n'est jamais partageable, on retombe alors sur l'affiche générique.
  */
-export function ogImageUrl(url?: string | null): string {
-  const base = appUrl();
-  if (!url) return `${base}${DEFAULT_OG_IMAGE}`;
-  if (url.startsWith("https://")) return url;
-  if (url.startsWith("/")) return `${base}${url}`;
-  return `${base}${DEFAULT_OG_IMAGE}`;
+export function ogImageUrl(...candidates: (string | null | undefined)[]): string {
+  for (const candidate of candidates) {
+    const url = candidate?.trim();
+    if (url && url.startsWith("https://")) return url;
+  }
+  return `${appUrl()}${DEFAULT_OG_IMAGE}`;
 }

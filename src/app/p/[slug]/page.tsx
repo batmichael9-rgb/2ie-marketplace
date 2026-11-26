@@ -26,7 +26,7 @@ export async function generateMetadata({
     where: { slug },
     include: {
       images: { orderBy: { position: "asc" }, take: 1 },
-      vendor: { select: { shopName: true, slug: true } },
+      vendor: { select: { shopName: true, slug: true, bannerUrl: true } },
     },
   });
 
@@ -34,9 +34,10 @@ export async function generateMetadata({
 
   const title = `${product.name} — ${formatXof(product.priceXof)} | 2iE Market`;
   const description = `${product.description.slice(0, 150)} · ${product.vendor.shopName}`;
-  // Photo principale si elle est servie en HTTPS ; sinon affiche générique
-  // (les images base64 ne sont pas exploitables par WhatsApp).
-  const image = ogImageUrl(product.images[0]?.url);
+  // Photo principale si elle est servie en HTTPS, sinon bannière de la
+  // boutique, sinon affiche générique (les images base64 ne sont pas
+  // exploitables par WhatsApp).
+  const image = ogImageUrl(product.images[0]?.url, product.vendor.bannerUrl);
 
   return {
     title: { absolute: title },
@@ -274,6 +275,7 @@ export default async function ProductPage({
                 slug={product.slug}
                 name={product.name}
                 priceXof={product.priceXof}
+                shopName={product.vendor.shopName}
               />
 
               {/* Le vendeur ne peut pas discuter avec lui-même. */}

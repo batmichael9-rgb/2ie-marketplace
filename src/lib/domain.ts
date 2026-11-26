@@ -198,8 +198,16 @@ export function generateShareCode(): string {
   return code;
 }
 
+/** Domaine public de production, utilisé si NEXT_PUBLIC_APP_URL est absent. */
+export const PRODUCTION_APP_URL = "https://2ie-marketplace.vercel.app";
+
 export function appUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  // En production, une URL `localhost` casserait les liens de retour de
+  // paiement et les images Open Graph : on retombe sur le domaine Vercel.
+  const fallback =
+    process.env.NODE_ENV === "production" ? PRODUCTION_APP_URL : "http://localhost:3000";
+  return (configured || fallback).replace(/\/+$/, "");
 }
 
 /**
