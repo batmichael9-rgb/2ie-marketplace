@@ -271,6 +271,95 @@ export function normalizeBfPhone(raw: string | null | undefined): string {
   return /^\d{8}$/.test(digits) ? `+226${digits}` : "";
 }
 
+/** Indicatifs des pays d'Afrique de l'Ouest (plan de numérotation UIT). */
+export const WEST_AFRICAN_COUNTRY_CODES = [
+  "221", // Sénégal
+  "222", // Mauritanie
+  "223", // Mali
+  "224", // Guinée
+  "225", // Côte d'Ivoire
+  "226", // Burkina Faso
+  "227", // Niger
+  "228", // Togo
+  "229", // Bénin
+  "231", // Liberia
+  "232", // Sierra Leone
+  "233", // Ghana
+  "234", // Nigeria
+  "235", // Tchad
+  "236", // République centrafricaine
+  "237", // Cameroun
+  "238", // Cap-Vert
+  "239", // São Tomé-et-Príncipe
+  "240", // Guinée équatoriale
+  "241", // Gabon
+  "242", // Congo
+  "243", // République démocratique du Congo
+  "244", // Angola
+  "245", // Guinée-Bissau
+  "246", // Diego Garcia
+  "247", // Ascension
+  "248", // Seychelles
+  "249", // Soudan
+  "250", // Rwanda
+  "251", // Éthiopie
+  "252", // Somalie
+  "253", // Djibouti
+  "254", // Kenya
+  "255", // Tanzanie
+  "256", // Ouganda
+  "257", // Burundi
+  "258", // Mozambique
+  "260", // Zambie
+  "261", // Madagascar
+  "262", // La Réunion / Mayotte
+  "263", // Zimbabwe
+  "264", // Namibie
+  "265", // Malawi
+  "266", // Lesotho
+  "267", // Botswana
+  "268", // Eswatini
+  "269", // Comores
+] as const;
+
+/**
+ * Normalise un numéro Mobile Money ouest-africain.
+ *
+ * Les espaces, tirets, points et parenthèses de saisie sont ignorés. Un numéro
+ * local à 8 chiffres est considéré comme burkinabè (`63097240` → `+22663097240`) ;
+ * un numéro préfixé par un indicatif ouest-africain, avec ou sans `+` / `00`,
+ * est conservé tel quel (`22663097240`, `+227…`, `+225…`).
+ *
+ * Renvoie une chaîne vide si le numéro n'est pas exploitable.
+ */
+export function normalizeWestAfricanPhone(raw: string | null | undefined): string {
+  if (raw == null) return "";
+  const text = String(raw).trim();
+  if (text === "") return "";
+
+  const digits = text.replace(/\D/g, "");
+  if (digits === "") return "";
+
+  // 8 chiffres sans indicatif : numéro local burkinabè (le plus courant ici).
+  if (digits.length === 8) return `+226${digits}`;
+
+  // Préfixe international saisi tantôt « 00 », tantôt sans « + » : seul le
+  // premier chiffre non nul compte, donc « 00226… » et « 226… » se rejoignent.
+  const international = digits.startsWith("00") ? digits.slice(2) : digits;
+  const countryCode = international.slice(0, 3);
+  const national = international.slice(3);
+
+  if (
+    (WEST_AFRICAN_COUNTRY_CODES as readonly string[]).includes(countryCode) &&
+    national.length >= 8 &&
+    national.length <= 12
+  ) {
+    return `+${international}`;
+  }
+
+  return "";
+}
+
 /** Formate un numéro +226XXXXXXXX en « +226 XX XX XX XX » pour l'affichage. */
 export function formatBfPhone(raw: string | null | undefined): string | null {
   const normalized = normalizeBfPhone(raw);

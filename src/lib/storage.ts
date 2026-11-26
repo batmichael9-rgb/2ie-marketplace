@@ -32,12 +32,27 @@ export async function uploadProductImage(file: File): Promise<string> {
   return uploadImage(file, "products");
 }
 
-/** Affiche / bannière publicitaire de la boutique (mêmes contraintes que les photos). */
+/**
+ * Affiche / bannière publicitaire de la boutique.
+ *
+ * Passe par exactement le même pipeline que les photos produit : même bucket
+ * Supabase (`SUPABASE_STORAGE_BUCKET`, « products » par défaut), même création
+ * automatique du bucket, même validation de type MIME, de taille et d'URL
+ * publique. Seul le préfixe d'objet diffère (`banners/` vs `products/`).
+ */
 export async function uploadShopBanner(file: File): Promise<string> {
   return uploadImage(file, "banners");
 }
 
 async function uploadImage(file: File, folder: string): Promise<string> {
+  // Un champ fichier vide (0 octet) ne doit pas être ignoré en silence : il est
+  // signalé au vendeur comme une erreur d'envoi.
+  if (file.size === 0) {
+    throw new ImageUploadError(
+      "Le fichier image est vide (0 octet) : choisis une photo JPG, PNG, WebP ou GIF.",
+    );
+  }
+
   const extension = IMAGE_EXTENSIONS[file.type];
   if (!extension) {
     throw new ImageUploadError(

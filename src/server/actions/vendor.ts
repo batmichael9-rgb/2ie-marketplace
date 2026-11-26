@@ -21,6 +21,51 @@ import {
 // Boutique
 // ---------------------------------------------------------------------------
 
+/** URL de retour avec un message d'erreur précis (affiché tel quel). */
+function boutiqueErrorUrl(error: "boutique" | "banniere", message: string): string {
+  const params = new URLSearchParams({ erreur: error, message });
+  return `/espace-vendeur?${params.toString()}#boutique`;
+}
+
+/** Libellé lisible du champ fautif, pour un message d'erreur compréhensible. */
+const BOUTIQUE_FIELD_LABELS: Record<string, string> = {
+  shopName: "Nom de la boutique",
+  description: "Description",
+  roomNumber: "Lieu de retrait",
+  momoNumber: "Numéro Mobile Money",
+  momoOperator: "Opérateur Mobile Money",
+  campus: "Campus",
+  orderCutoffTime: "Heure limite de commande",
+};
+
+/** Raison lisible d'un échec d'écriture en base (sans masquer l'erreur réelle). */
+function describeDatabaseError(error: unknown): string {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    switch (error.code) {
+      case "P1001":
+      case "P1002":
+        return "la base de données est injoignable (erreur de connexion)";
+      case "P2002":
+        return "une valeur unique est déjà utilisée par une autre boutique";
+      case "P2003":
+        return "une référence liée à la boutique est invalide";
+      case "P2022":
+        return "une colonne manque en base : applique les migrations Prisma (npx prisma migrate deploy)";
+      case "P2025":
+        return "la boutique n'existe plus en base";
+      default:
+        return `erreur base de données ${error.code}`;
+    }
+  }
+  if (error instanceof Prisma.PrismaClientValidationError) {
+    return "les données envoyées à la base ne correspondent pas au schéma Prisma";
+  }
+  if (error instanceof Error && error.message) {
+    return `erreur base de données : ${error.message}`;
+  }
+  return "erreur base de données inconnue";
+}
+
 /**
  * Modification des informations de la boutique depuis le tableau de bord.
  *
@@ -42,14 +87,35 @@ export async function updateVendorProfileAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/espace-vendeur?erreur=boutique#boutique");
+    // Message réel du validateur (nom, campus, heure, téléphone…) plutôt que
+    // l'ancien message générique qui cachait la cause de l'échec.
+    const issue = parsed.error.issues[0];
+    const field = issue?.path.join(".") ?? "";
+    const label = BOUTIQUE_FIELD_LABELS[field];
+    const detail = issue?.message ?? "Formulaire incomplet.";
+    redirect(boutiqueErrorUrl("boutique", label ? `${label} : ${detail}` : detail));
   }
 
   const data = parsed.data;
 
-  // Affiche publicitaire : facultative, l'absence de fichier conserve l'actuelle.
+  // Affiche publicitaire : facultative. Aucun fichier choisi conserve l'actuelle
+  // (ce n'est pas un échec), mais un fichier vide ou illisible doit être signalé
+  // au lieu d'être ignoré en silence.
   const bannerField = formData.get("banner");
-  const banner = bannerField instanceof File && bannerField.size > 0 ? bannerField : null;
+  const bannerSelected = bannerField instanceof File && bannerField.size > 0;
+  if (
+    bannerField instanceof File &&
+    bannerField.name !== "" &&
+    bannerField.size === 0
+  ) {
+    redirect(
+      boutiqueErrorUrl(
+        "banniere",
+        "Le fichier de l'affiche est vide (0 octet). Choisis une image JPG, PNG, WebP ou GIF.",
+      ),
+    );
+  }
+  const banner = bannerSelected ? (bannerField as File) : null;
   let bannerUrl: string | null = null;
   if (banner) {
     try {
@@ -58,23 +124,42 @@ export async function updateVendorProfileAction(formData: FormData) {
       if (!(error instanceof ImageUploadError)) {
         console.error("Envoi de l'affiche boutique :", error);
       }
-      redirect("/espace-vendeur?erreur=banniere#boutique");
+      redirect(
+        boutiqueErrorUrl(
+          "banniere",
+          error instanceof ImageUploadError
+            ? `Envoi de l'affiche impossible : ${error.message}`
+            : `Envoi de l'affiche impossible : ${
+                error instanceof Error ? error.message : "erreur inconnue"
+              }`,
+        ),
+      );
     }
   }
 
-  await db.vendorProfile.update({
-    where: { id: vendor.id },
-    data: {
-      shopName: data.shopName,
-      description: data.description || null,
-      roomNumber: data.roomNumber || null,
-      campus: data.campus,
-      acceptsCashPayment: formData.get("acceptsCashPayment") === "on",
-      isOpen: data.isOpen,
-      orderCutoffTime: data.orderCutoffTime || null,
-      ...(bannerUrl ? { bannerUrl } : {}),
-    },
-  });
+  try {
+    await db.vendorProfile.update({
+      where: { id: vendor.id },
+      data: {
+        shopName: data.shopName,
+        description: data.description || null,
+        roomNumber: data.roomNumber || null,
+        campus: data.campus,
+        acceptsCashPayment: formData.get("acceptsCashPayment") === "on",
+        isOpen: data.isOpen,
+        orderCutoffTime: data.orderCutoffTime || null,
+        ...(bannerUrl ? { bannerUrl } : {}),
+      },
+    });
+  } catch (error) {
+    console.error("Mise à jour de la boutique :", error);
+    redirect(
+      boutiqueErrorUrl(
+        "boutique",
+        `L'enregistrement de la boutique a échoué : ${describeDatabaseError(error)}.`,
+      ),
+    );
+  }
 
   revalidatePath("/espace-vendeur");
   revalidatePath("/profil");

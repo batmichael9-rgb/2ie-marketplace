@@ -53,6 +53,7 @@ export default async function VendorDashboardPage({
     boutique?: string;
     versement?: string;
     erreur?: string;
+    message?: string;
     supprimer?: string;
   }>;
 }) {
@@ -170,7 +171,7 @@ export default async function VendorDashboardPage({
     stock: "La mise à jour du stock a échoué. Vérifie les valeurs saisies.",
     produit: "Produit introuvable dans ta boutique.",
     boutique:
-      "Les informations de la boutique n'ont pas pu être enregistrées : vérifie le nom (2 à 60 caractères) et le numéro Mobile Money.",
+      "Les informations de la boutique n'ont pas pu être enregistrées. Réessaie ; si le problème persiste, vérifie que les migrations de la base sont appliquées.",
     banniere:
       "L'affiche de la boutique n'a pas pu être envoyée : JPG, PNG, WebP ou GIF, 5 Mo maximum.",
     "produit-commandes":
@@ -521,7 +522,9 @@ export default async function VendorDashboardPage({
 
       {params.erreur ? (
         <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
-          {errors[params.erreur] ?? "Cette action n'a pas pu être effectuée."}
+          {params.message?.trim() ||
+            errors[params.erreur] ||
+            "Cette action n'a pas pu être effectuée."}
         </p>
       ) : null}
 

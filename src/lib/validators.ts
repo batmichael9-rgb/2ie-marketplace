@@ -4,6 +4,7 @@ import {
   PAYOUT_METHODS,
   VENDOR_EMAIL_DOMAIN,
   normalizeBfPhone,
+  normalizeWestAfricanPhone,
 } from "@/lib/domain";
 
 /** Opérateur Mobile Money : ORANGE_MONEY | MOOV_MONEY | WAVE. */
@@ -18,6 +19,31 @@ const phone = z
   .min(8, "Numéro de téléphone trop court (8 chiffres minimum).")
   .max(20, "Numéro de téléphone trop long (20 caractères maximum).")
   .regex(/^[0-9+\s().-]+$/, "Numéro invalide : chiffres, espaces, +, - et parenthèses uniquement.");
+
+/**
+ * Numéro Mobile Money facultatif, tolérant à la saisie.
+ *
+ * Les espaces, tirets et parenthèses sont nettoyés avant validation, et les
+ * formats locaux (`63097240`), préfixés (`22663097240`) ou internationaux
+ * (`+22663097240`, `+227…`, `+225…`) sont tous acceptés. Un champ absent du
+ * formulaire (`null`) vaut chaîne vide : il ne doit jamais faire échouer la
+ * mise à jour du reste du profil.
+ */
+const optionalMobileMoneyPhone = z.preprocess(
+  (value) => {
+    const raw = value == null ? "" : String(value).trim();
+    if (raw === "") return "";
+    // Un numéro invalide est conservé tel quel pour que la validation échoue
+    // avec un message clair au lieu de l'effacer en silence.
+    return normalizeWestAfricanPhone(raw) || raw;
+  },
+  z
+    .string()
+    .refine(
+      (value) => value === "" || /^\+[1-9]\d{7,14}$/.test(value),
+      "Numéro Mobile Money invalide : 8 chiffres (63097240) ou avec indicatif (+226 63 09 72 40, +227…, +225…).",
+    ),
+);
 
 /** Numéro burkinabè obligatoire, normalisé en +226XXXXXXXX. */
 const requiredBfPhone = z.preprocess(
@@ -152,7 +178,7 @@ export const vendorProfileSchema = z.object({
   shopName: z.string().trim().min(2, "Nom de boutique trop court").max(60),
   description: z.string().trim().max(500).optional().or(z.literal("")),
   roomNumber: z.string().trim().max(30).optional().or(z.literal("")),
-  momoNumber: phone.optional().or(z.literal("")),
+  momoNumber: optionalMobileMoneyPhone,
   momoOperator: mobileMoneyProvider,
   campus: campusSchema,
   // Interrupteur « Boutique ouverte aux commandes » : coché par défaut.
