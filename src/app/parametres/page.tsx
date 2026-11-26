@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Bell, MapPin, Wallet } from "lucide-react";
+import { Bell, MapPin, Palette, Wallet } from "lucide-react";
 import { CampusPreference } from "@/components/campus-preference";
 import { MobileMoneyFields } from "@/components/mobile-money-fields";
 import { PushNotificationsButton } from "@/components/push-notifications-button";
+import { ThemeChooser } from "@/components/theme-chooser";
 import { requireUser } from "@/lib/auth";
 import { updateMobileMoneyAction } from "@/server/actions/profile";
 
@@ -55,7 +56,7 @@ export default async function SettingsPage({
         </Link>
         <h1 className="mt-2 text-2xl font-bold tracking-tight">Paramètres</h1>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          Notifications, Mobile Money et campus par défaut.
+          Apparence, notifications, Mobile Money et campus par défaut.
         </p>
       </div>
 
@@ -70,6 +71,14 @@ export default async function SettingsPage({
           {params.erreur}
         </p>
       ) : null}
+
+      <Section
+        icon={<Palette className="size-5" aria-hidden />}
+        title="Apparence"
+        description="Choisis un thème clair, sombre, ou automatique selon ton téléphone."
+      >
+        <ThemeChooser />
+      </Section>
 
       <Section
         icon={<Bell className="size-5" aria-hidden />}

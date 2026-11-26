@@ -19,7 +19,7 @@ type SearchParams = {
 };
 
 const inputClass =
-  "w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all bg-white text-slate-900 placeholder:text-slate-400";
+  "w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all bg-white text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400";
 
 export default async function RegisterPage({
   searchParams,
@@ -39,7 +39,7 @@ export default async function RegisterPage({
   const nextQuery = next ? `&suivant=${encodeURIComponent(next)}` : "";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50 py-12 px-4 sm:px-6 lg:px-8 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
       <div className="mx-auto max-w-md">
         <div className="text-center">
           <div className="mx-auto h-14 w-14 rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-teal-500/30">
@@ -57,10 +57,10 @@ export default async function RegisterPage({
               />
             </svg>
           </div>
-          <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900">
+          <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             {onCodeStep ? "Vérifie ton email" : "Créer un compte"}
           </h1>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
             {onCodeStep
               ? isVendor
                 ? "Dernière étape avant l'ouverture de ta boutique"
@@ -72,13 +72,13 @@ export default async function RegisterPage({
         </div>
 
         {!onCodeStep ? (
-          <div className="mt-8 flex gap-2 p-1 bg-slate-100 rounded-xl">
+          <div className="mt-8 flex gap-2 p-1 bg-slate-100 rounded-xl dark:bg-slate-800">
             <Link
               href={`/inscription?vendeur=0${nextQuery}`}
               className={`flex-1 py-2.5 px-4 text-sm font-semibold rounded-lg transition-all ${
                 !isVendor
-                  ? "bg-white text-teal-700 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-white text-teal-700 shadow-sm dark:bg-slate-900 dark:text-teal-300"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
               }`}
             >
               Client
@@ -87,8 +87,8 @@ export default async function RegisterPage({
               href={`/inscription?vendeur=1${nextQuery}`}
               className={`flex-1 py-2.5 px-4 text-sm font-semibold rounded-lg transition-all ${
                 isVendor
-                  ? "bg-white text-teal-700 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-white text-teal-700 shadow-sm dark:bg-slate-900 dark:text-teal-300"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
               }`}
             >
               Vendeur
@@ -97,14 +97,14 @@ export default async function RegisterPage({
         ) : null}
 
         {params.erreur ? (
-          <div className="mt-6 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">
+          <div className="mt-6 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700 dark:bg-red-950/40 dark:border-red-900/60 dark:text-red-300">
             {params.erreur}
           </div>
         ) : null}
 
         {onCodeStep ? (
           <>
-            <div className="mt-6 rounded-xl bg-teal-50 border border-teal-100 px-4 py-4 text-sm text-teal-900">
+            <div className="mt-6 rounded-xl bg-teal-50 border border-teal-100 px-4 py-4 text-sm text-teal-900 dark:bg-teal-500/10 dark:border-teal-800 dark:text-teal-200">
               <p className="font-semibold">
                 Un e-mail contenant un code de vérification à 6 chiffres vient
                 d&apos;être envoyé à {email}.
@@ -125,7 +125,7 @@ export default async function RegisterPage({
               <input type="hidden" name="isVendor" value={isVendor ? "true" : "false"} />
 
               <div>
-                <label htmlFor="code" className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label htmlFor="code" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                   Code de vérification
                 </label>
                 <input
@@ -144,7 +144,7 @@ export default async function RegisterPage({
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label htmlFor="firstName" className="block text-sm font-medium text-slate-700 mb-1.5">
+                  <label htmlFor="firstName" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                     Prénom
                   </label>
                   <input
@@ -158,7 +158,7 @@ export default async function RegisterPage({
                   />
                 </div>
                 <div>
-                  <label htmlFor="lastName" className="block text-sm font-medium text-slate-700 mb-1.5">
+                  <label htmlFor="lastName" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                     Nom
                   </label>
                   <input
@@ -174,7 +174,7 @@ export default async function RegisterPage({
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                   Mot de passe
                 </label>
                 <input
@@ -186,13 +186,13 @@ export default async function RegisterPage({
                   autoComplete="new-password"
                   required
                 />
-                <p className="mt-1.5 text-xs text-slate-500">
+                <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                   Minimum 8 caractères, 1 majuscule, 1 minuscule, 1 chiffre
                 </p>
               </div>
 
               <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label htmlFor="phone" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                   Téléphone <span className="font-normal text-slate-400">(facultatif)</span>
                 </label>
                 <input
@@ -209,7 +209,7 @@ export default async function RegisterPage({
               {isVendor ? (
                 <>
                   <div>
-                    <label htmlFor="shopName" className="block text-sm font-medium text-slate-700 mb-1.5">
+                    <label htmlFor="shopName" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                       Nom de ta boutique
                     </label>
                     <input
@@ -223,7 +223,7 @@ export default async function RegisterPage({
                   </div>
 
                   <div>
-                    <label htmlFor="campus" className="block text-sm font-medium text-slate-700 mb-1.5">
+                    <label htmlFor="campus" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                       Campus 2iE
                     </label>
                     <select id="campus" name="campus" className={inputClass} defaultValue="" required>
@@ -233,14 +233,14 @@ export default async function RegisterPage({
                       <option value="Site de Ouagadougou">Site de Ouagadougou</option>
                       <option value="Site de Kamboinsé">Site de Kamboinsé</option>
                     </select>
-                    <p className="mt-1.5 text-xs text-slate-500">
+                    <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                       Ton campus est affiché aux clients sur tes produits.
                     </p>
                   </div>
 
                   <VendorSignupHighlights />
 
-                  <label className="flex items-start gap-3 rounded-xl border border-teal-200 bg-white p-3 text-sm">
+                  <label className="flex items-start gap-3 rounded-xl border border-teal-200 bg-white p-3 text-sm dark:border-teal-800 dark:bg-slate-900 dark:text-slate-200">
                     <input
                       type="checkbox"
                       name="vendorCommissionAccepted"
@@ -280,7 +280,7 @@ export default async function RegisterPage({
 
               <Link
                 href={`/inscription?vendeur=${isVendor ? "1" : "0"}${nextQuery}`}
-                className="text-xs text-slate-500 hover:text-slate-700"
+                                  className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 Changer d&apos;adresse email
               </Link>
@@ -290,7 +290,7 @@ export default async function RegisterPage({
           <>
             {isVendor ? (
               <>
-                <div className="mt-6 rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-900">
+                <div className="mt-6 rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-900 dark:bg-amber-500/10 dark:border-amber-800 dark:text-amber-200">
                   <strong>Format d&apos;email requis :</strong> prenom.nom@2ie-edu.org
                 </div>
                 <VendorSignupHighlights className="mt-4" />
@@ -302,7 +302,7 @@ export default async function RegisterPage({
               <input type="hidden" name="isVendor" value={isVendor ? "true" : "false"} />
 
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label htmlFor="email" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                   Adresse email
                 </label>
                 <input
@@ -315,7 +315,7 @@ export default async function RegisterPage({
                   defaultValue={email}
                   required
                 />
-                <p className="mt-1.5 text-xs text-slate-500">
+                <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                   Un code de vérification à 6 chiffres te sera envoyé par email.
                 </p>
               </div>
@@ -328,7 +328,7 @@ export default async function RegisterPage({
               </button>
             </form>
 
-            <p className="mt-6 text-center text-sm text-slate-600">
+            <p className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
               Déjà un compte ?{" "}
               <Link
                 href={`/connexion${next ? `?suivant=${encodeURIComponent(next)}` : ""}`}

@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Mot de passe oublié" };
 type SearchParams = { etape?: string; email?: string; erreur?: string };
 
 const inputClass =
-  "w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all bg-white text-slate-900 placeholder:text-slate-400";
+  "w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all bg-white text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400";
 
 export default async function ForgotPasswordPage({
   searchParams,
@@ -23,7 +23,7 @@ export default async function ForgotPasswordPage({
   const isInstitutionalEmail = email.endsWith("@2ie-edu.org");
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50 py-12 px-4 sm:px-6 lg:px-8 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
       <div className="mx-auto max-w-md">
         <div className="text-center">
           <div className="mx-auto h-14 w-14 rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-teal-500/30">
@@ -41,10 +41,10 @@ export default async function ForgotPasswordPage({
               />
             </svg>
           </div>
-          <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900">
+          <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             {onCodeStep ? "Nouveau mot de passe" : "Mot de passe oublié"}
           </h1>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
             {onCodeStep
               ? "Saisis le code reçu par email puis choisis un nouveau mot de passe."
               : "Indique ton adresse email pour recevoir un code de réinitialisation."}
@@ -52,14 +52,14 @@ export default async function ForgotPasswordPage({
         </div>
 
         {params.erreur ? (
-          <div className="mt-6 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">
+          <div className="mt-6 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700 dark:bg-red-950/40 dark:border-red-900/60 dark:text-red-300">
             {params.erreur}
           </div>
         ) : null}
 
         {onCodeStep ? (
           <>
-            <div className="mt-6 rounded-xl bg-teal-50 border border-teal-100 px-4 py-4 text-sm text-teal-900">
+            <div className="mt-6 rounded-xl bg-teal-50 border border-teal-100 px-4 py-4 text-sm text-teal-900 dark:bg-teal-500/10 dark:border-teal-800 dark:text-teal-200">
               <p className="font-semibold">
                 Un e-mail contenant un code de vérification à 6 chiffres vient
                 d&apos;être envoyé à {email}.
@@ -78,7 +78,7 @@ export default async function ForgotPasswordPage({
               <input type="hidden" name="email" value={email} />
 
               <div>
-                <label htmlFor="code" className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label htmlFor="code" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                   Code de vérification
                 </label>
                 <input
@@ -96,7 +96,7 @@ export default async function ForgotPasswordPage({
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                   Nouveau mot de passe
                 </label>
                 <input
@@ -108,7 +108,7 @@ export default async function ForgotPasswordPage({
                   autoComplete="new-password"
                   required
                 />
-                <p className="mt-1.5 text-xs text-slate-500">
+                <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                   Minimum 8 caractères, 1 majuscule, 1 minuscule, 1 chiffre
                 </p>
               </div>
@@ -134,7 +134,7 @@ export default async function ForgotPasswordPage({
 
               <Link
                 href="/mot-de-passe-oublie"
-                className="text-xs text-slate-500 hover:text-slate-700"
+                className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 Changer d&apos;adresse email
               </Link>
@@ -144,7 +144,7 @@ export default async function ForgotPasswordPage({
           <>
             <form action={requestPasswordResetAction} className="mt-8 space-y-5">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label htmlFor="email" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                   Adresse email
                 </label>
                 <input
@@ -167,7 +167,7 @@ export default async function ForgotPasswordPage({
               </button>
             </form>
 
-            <p className="mt-6 text-center text-sm text-slate-600">
+            <p className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
               <Link
                 href="/connexion"
                 className="font-semibold text-teal-600 hover:text-teal-700 transition-colors"

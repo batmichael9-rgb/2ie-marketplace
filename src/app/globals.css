@@ -1,12 +1,8 @@
 @import "tailwindcss";
 
-/* Thème clair imposé sur toute l'application.
-
-   Le mode sombre n'est plus appliqué : aucune classe `.dark` n'est ajoutée et
-   le thème `prefers-color-scheme: dark` de l'appareil est ignoré. La variante
-   reste déclarée pour que les classes `dark:` déjà présentes dans les
-   composants ne basculent pas sur la préférence système de Tailwind v4, mais
-   elle ne s'active jamais sans la classe `.dark`. */
+/* Mode sombre piloté par la classe `.dark` sur <html> (Tailwind v4).
+   Équivalent de `darkMode: "class"` : ThemeProvider ajoute/retire la classe
+   selon « clair », « sombre » ou « système ». */
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
@@ -19,13 +15,17 @@
 }
 
 @layer base {
-  /* `color-scheme: light` empêche Chrome, Safari, Android et iOS d'inverser
-     automatiquement les couleurs des champs de formulaire, des menus
-     déroulants et des barres de défilement lorsque l'appareil est en mode
-     sombre (`prefers-color-scheme: dark`). */
+  /* `color-scheme` laisse le navigateur adapter les contrôles natifs (champs,
+     menus déroulants, barres de défilement) au thème actif. Le thème est
+     choisi par l'utilisateur (clair, sombre ou système) et matérialisé par la
+     classe `.dark` sur <html>. */
   :root,
   html {
-    color-scheme: light;
+    color-scheme: light dark;
+  }
+
+  html.dark {
+    color-scheme: dark;
   }
 
   html {
@@ -42,8 +42,9 @@
     @apply bg-teal-200;
   }
 
-  /* Sécurité explicite pour tous les champs de saisie : fond clair, texte
-     foncé et placeholder gris, quel que soit le thème de l'appareil. */
+  /* Sécurité explicite pour tous les champs de saisie : le fond, le texte et
+     le placeholder suivent le thème actif, pour rester lisibles en clair comme
+     en sombre même si un composant oublie ses classes `dark:`. */
   input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]),
   textarea,
   select {
@@ -51,13 +52,25 @@
     color-scheme: light;
   }
 
+  .dark input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  .dark textarea,
+  .dark select {
+    @apply border-slate-700 bg-slate-800 text-white placeholder:text-slate-400;
+    color-scheme: dark;
+  }
+
   select option {
     background-color: #ffffff;
     color: #0f172a;
   }
 
-  /* Remplissage automatique du navigateur : conserve le fond blanc et le
-     texte lisible au lieu du fond bleu/jaune et du texte clair par défaut. */
+  .dark select option {
+    background-color: #1e293b;
+    color: #f8fafc;
+  }
+
+  /* Remplissage automatique du navigateur : conserve le fond et le texte du
+     thème actif au lieu du fond bleu/jaune et du texte clair par défaut. */
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
   input:-webkit-autofill:focus,
@@ -68,6 +81,18 @@
     caret-color: #0f172a;
     -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
     box-shadow: 0 0 0 1000px #ffffff inset !important;
+  }
+
+  .dark input:-webkit-autofill,
+  .dark input:-webkit-autofill:hover,
+  .dark input:-webkit-autofill:focus,
+  .dark input:-webkit-autofill:active,
+  .dark textarea:-webkit-autofill,
+  .dark select:-webkit-autofill {
+    -webkit-text-fill-color: #f8fafc !important;
+    caret-color: #f8fafc;
+    -webkit-box-shadow: 0 0 0 1000px #1e293b inset !important;
+    box-shadow: 0 0 0 1000px #1e293b inset !important;
   }
 
   /* Les cartes sont le conteneur principal de contenu : on ajuste les tons de
@@ -102,7 +127,7 @@
   .input {
     @apply w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-[15px] text-slate-900
            placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20
-           dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500;
+           dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400;
   }
 
   .label {
