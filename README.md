@@ -102,8 +102,8 @@ seule) : elles sont envoyées dans un bucket public Supabase Storage.
 # Pousser le schéma vers Supabase (crée les tables)
 npx prisma db push
 
-# Peupler avec les données de démonstration
-npm run db:seed
+# Restaurer les catégories (sans comptes ni produits de démonstration)
+npm run db:seed:categories
 ```
 
 ### 6. Lancer en développement
@@ -114,19 +114,12 @@ npm run dev
 
 L'application sera accessible sur [http://localhost:3000](http://localhost:3000)
 
-## 🔑 Comptes de démonstration
+## 🔑 Comptes
 
-Après avoir exécuté `npm run db:seed`, les comptes suivants sont disponibles :
-
-### Vendeurs
-
-- Email : `fatou.ouedraogo@2ie-edu.org` / Mot de passe : `Demo2024!`
-- Email : `ibrahim.kore@2ie-edu.org` / Mot de passe : `Demo2024!`
-- Email : `awa.sawadogo@2ie-edu.org` / Mot de passe : `Demo2024!`
-
-### Client
-
-- Email : `etudiant@2ie.bf` / Mot de passe : `Client2024!`
+Aucun identifiant n'est fourni ni publié : créez votre compte depuis
+[`/inscription`](http://localhost:3000/inscription). Un vendeur doit utiliser
+une adresse `prenom.nom@2ie-edu.org` ; un client peut utiliser n'importe quelle
+adresse valide. L'inscription est confirmée par un code envoyé par email.
 
 ## 📦 Déploiement en production
 
@@ -147,14 +140,14 @@ openssl rand -base64 48
 
 Copier le résultat dans `AUTH_SECRET`.
 
-### 3. Pousser le schéma et les données
+### 3. Pousser le schéma et les catégories
 
 ```bash
 # En production, utiliser db push
 npx prisma db push
 
-# Peupler la base
-npm run db:seed
+# Restaurer les catégories (le seed complet est bloqué en production)
+npm run db:seed:categories
 ```
 
 ### 4. Déployer sur Vercel (recommandé)
@@ -231,7 +224,7 @@ L'application est installable sur mobile et desktop :
 2ie-marketplace/
 ├── prisma/
 │   ├── schema.prisma       # Schéma de base de données
-│   └── seed.ts             # Données de démonstration
+│   └── seed.ts             # Catégories + jeu de démonstration (hors production)
 ├── public/
 │   ├── sw.js               # Service worker PWA
 │   └── offline.html        # Page hors ligne
@@ -268,8 +261,8 @@ npx prisma generate
 # Pousser le schéma vers la DB
 npx prisma db push
 
-# Peupler la base
-npm run db:seed
+# Restaurer les catégories (le seed complet est bloqué en production)
+npm run db:seed:categories
 
 # Réinitialiser complètement la DB
 npm run db:reset

@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   // La recherche appelle éventuellement un modèle payant : on limite les
   // rafales par IP pour éviter un déni de service ou une facture incontrôlée.
   const ip = await getClientIp();
-  const limit = rateLimit(`ai-search:${ip}`, 30, 60_000);
+  const limit = await rateLimit(`ai-search:${ip}`, 30, 60_000);
   if (!limit.ok) {
     return NextResponse.json(
       {

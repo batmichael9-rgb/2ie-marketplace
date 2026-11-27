@@ -55,6 +55,23 @@ L'application est majoritairement saine : les prix et frais sont recalculés cô
 11. **Anciens logos verts encore servis**
     - Correctif : `manifest.json` et `sw.js` ne référencent plus que `/icon.jpg` ; `public/icons/`, `public/icon.svg`, `src/app/apple-icon.png` et l'ancienne route `/og-default.png` ont été supprimés. Les aperçus Open Graph retombent sur `/logo.jpg`.
 
+### Corrections complémentaires (27 novembre 2026)
+
+12. **SEC-01 — Identifiants de démonstration publiés**
+    - `README.md` listait des emails et mots de passe en clair, et `prisma/seed.ts` les recréait sans garde-fou. Ces comptes pouvaient être utilisés tels quels sur une instance déployée.
+    - Correctif : identifiants retirés du README (renvoi vers `/inscription`) ; le seed refuse de s'exécuter si `NODE_ENV=production` sans `ALLOW_PROD_SEED=true`, et même autorisé, il ne crée que les catégories en production.
+
+13. **SEC-07 — Wildcard des images distantes**
+    - `images.remotePatterns` acceptait `hostname: "**"`, donc tout domaine pouvait servir d'image via l'optimiseur Next.
+    - Correctif : seuls `*.supabase.co` (chemin `/storage/v1/object/public/**`) et `lh3.googleusercontent.com` sont autorisés.
+
+14. **SEC-05 — Rate limiting contournable entre instances**
+    - Le compteur était une `Map` en mémoire : sur plusieurs instances serverless, chaque instance avait sa propre fenêtre.
+    - Correctif : table PostgreSQL `RateLimitCounter` et UPSERT atomique sur une clé incluant la fenêtre (`src/lib/rate-limit.ts`), avec repli mémoire journalisé uniquement si la base est injoignable. Migration : `prisma/migrations/20261127120000_rate_limit_counter/migration.sql`.
+
+15. **Tests de non-régression sécurité**
+    - `npm run test:security` démarre le build de production et vérifie : seed bloqué en production, cron sans `CRON_SECRET` → 401, webhook non signé → 401, faux paiement jamais crédité, absence de `SUPABASE_SERVICE_ROLE_KEY` dans `.next/static`.
+
 ## Points vérifiés sans faille
 
 - **IDOR** : commandes (acheteur/vendeur/admin), profil (session uniquement), produits (propriétaire ou admin), conversations (membre), abonnements Push (propriétaire), reversements (vendeur propriétaire ou admin).
@@ -67,6 +84,6 @@ L'application est majoritairement saine : les prix et frais sont recalculés cô
 ## Limites et recommandations
 
 - **RLS Supabase** : l'application n'utilise que Prisma côté serveur (aucun client Supabase public). Les politiques RLS ne s'appliquent donc pas au flux actuel ; si un client Supabase `anon` est introduit, il faudra activer RLS sur `profiles`, `shops`, `products`, `orders`, `reviews`, `messages` et interdire toute écriture hors Edge Function/service role.
-- Le limiteur de débit est en mémoire (une instance). Sur plusieurs instances, utiliser un store partagé (Upstash/Redis).
+- Le limiteur de débit est persistant en PostgreSQL (partagé entre instances). Il applique une fenêtre fixe : un pic en limite de fenêtre reste possible, sans permettre de contourner la limite entre instances.
 - Le changement d'email depuis `/profil` ne demande pas de revérification : à renforcer si l'email devient un identifiant sensible.
 - Configurer `MONEYFUSION_WEBHOOK_SECRET` en production ; la vérification serveur reste la protection principale.

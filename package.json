@@ -12,7 +12,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:categories": "tsx prisma/seed.ts --categories-only",
     "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test:security": "node scripts/security-check.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -64,6 +64,19 @@ model OtpCode {
   @@index([email, purpose, createdAt])
 }
 
+/// Compteur de limitation de débit partagé entre toutes les instances
+/// serverless. La clé contient la fenêtre temporelle (ex. `login:ip:1.2.3.4:288`),
+/// ce qui rend l'incrément atomique via un UPSERT et évite toute course entre
+/// instances.
+model RateLimitCounter {
+  key       String   @id
+  count     Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
 model VendorProfile {
   id          String   @id @default(cuid())
   userId      String   @unique

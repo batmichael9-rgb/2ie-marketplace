@@ -12,9 +12,25 @@ const categories = [
   { name: "Beauté & parfums", slug: "beaute", icon: "🧴", position: 6 },
 ];
 
+// Garde-fou production : un seed complet crée des comptes de démonstration
+// avec des mots de passe connus. Il est donc interdit en production sauf
+// autorisation explicite via ALLOW_PROD_SEED=true ; même autorisé, il ne crée
+// que les catégories, jamais de comptes.
+const isProduction = process.env.NODE_ENV === "production";
+const allowProdSeed = process.env.ALLOW_PROD_SEED === "true";
+
+if (isProduction && !allowProdSeed) {
+  console.error(
+    "Refus de seed : NODE_ENV=production. Définissez ALLOW_PROD_SEED=true pour " +
+      "autoriser explicitement l'opération (seules les catégories seront créées).",
+  );
+  process.exit(1);
+}
+
 // `--categories-only` restaure les catégories sans recréer les vendeurs,
-// produits ni le client de démonstration (utile en production).
-const categoriesOnly = process.argv.includes("--categories-only");
+// produits ni le client de démonstration. En production, seules les
+// catégories sont autorisées, même avec ALLOW_PROD_SEED=true.
+const categoriesOnly = process.argv.includes("--categories-only") || isProduction;
 
 type SeedProduct = {
   slug: string;
@@ -282,10 +298,8 @@ async function main() {
     },
   });
 
-  console.log("✓ Base de données initialisée");
-  console.log("Comptes de démonstration :");
-  console.log("  Vendeurs : email format prenom.nom@2ie-edu.org / mot de passe: Demo2024!");
-  console.log("  Client : etudiant@2ie.bf / mot de passe: Client2024!");
+  console.log("✓ Base de données initialisée (jeu de démonstration local).");
+  console.log("  Créez vos comptes via /inscription.");
 }
 
 main()

@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Les photos produits sont stockées comme URLs distantes (Cloudinary, Supabase Storage...).
-  // On garde des <img> natifs tant que l'hébergement d'images n'est pas figé.
+  // Les photos produits et les bannières sont stockées sur Supabase Storage ;
+  // seuls ces domaines (et les avatars Google, si utilisés) sont autorisés.
   serverExternalPackages: ["@prisma/client"],
   // Les photos produits passent par une Server Action : la limite par défaut
   // (1 Mo) est trop basse pour une photo de téléphone (5 Mo max).
@@ -12,8 +12,16 @@ const nextConfig: NextConfig = {
     },
   },
   images: {
+    // Pas de wildcard générique : uniquement les hôtes réellement utilisés par
+    // l'application. Un domaine compromis ne peut donc pas servir d'images via
+    // l'optimiseur Next.
     remotePatterns: [
-      { protocol: "https", hostname: "**" },
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
     ],
   },
   // En-têtes de sécurité HTTP appliqués à toutes les réponses.

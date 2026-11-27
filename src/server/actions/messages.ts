@@ -143,7 +143,7 @@ export async function sendMessageAction(
   // Anti-spam : 20 messages par minute et par compte. Le fil est actualisé
   // toutes les 5 s côté client, cette limite reste donc largement suffisante
   // pour une conversation normale.
-  const limit = rateLimit(`message:${user.id}`, 20, 60_000);
+  const limit = await rateLimit(`message:${user.id}`, 20, 60_000);
   if (!limit.ok) {
     return {
       ok: false,

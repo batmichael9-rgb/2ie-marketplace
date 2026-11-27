@@ -65,7 +65,7 @@ function emailErrorMessage(error: unknown): string {
  * Renvoie un message utilisateur si la limite est atteinte, sinon `null`.
  */
 async function otpRateLimitError(scope: string, email: string): Promise<string | null> {
-  const byEmail = rateLimit(`otp:${scope}:email:${email}`, 3, 10 * 60_000);
+  const byEmail = await rateLimit(`otp:${scope}:email:${email}`, 3, 10 * 60_000);
   if (!byEmail.ok) {
     return `Trop de demandes de code pour cette adresse. Patiente ${Math.ceil(
       byEmail.retryAfterSeconds / 60,
@@ -73,7 +73,7 @@ async function otpRateLimitError(scope: string, email: string): Promise<string |
   }
 
   const ip = await getClientIp();
-  const byIp = rateLimit(`otp:${scope}:ip:${ip}`, 20, 10 * 60_000);
+  const byIp = await rateLimit(`otp:${scope}:ip:${ip}`, 20, 10 * 60_000);
   if (!byIp.ok) {
     return `Trop de demandes de code depuis cette connexion. Patiente ${Math.ceil(
       byIp.retryAfterSeconds / 60,
@@ -346,8 +346,10 @@ export async function loginAction(formData: FormData) {
   // Anti-force brute : limite par adresse IP et par compte. Un attaquant ne
   // peut pas tester des milliers de mots de passe sur une même adresse.
   const ip = await getClientIp();
-  const byIp = rateLimit(`login:ip:${ip}`, 20, 10 * 60_000);
-  const byEmail = rateLimit(`login:email:${email}`, 8, 10 * 60_000);
+  const [byIp, byEmail] = await Promise.all([
+    rateLimit(`login:ip:${ip}`, 20, 10 * 60_000),
+    rateLimit(`login:email:${email}`, 8, 10 * 60_000),
+  ]);
   if (!byIp.ok || !byEmail.ok) {
     redirect(
       `/connexion?erreur=${encodeURIComponent(
