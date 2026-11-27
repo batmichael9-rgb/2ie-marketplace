@@ -17,6 +17,31 @@ const IMAGE_EXTENSIONS: Record<string, string> = {
  */
 export class ImageUploadError extends Error {}
 
+/** Type MIME réel d'une image, déduit de ses premiers octets. */
+function detectImageType(buffer: Buffer): string | null {
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (
+    buffer.length >= 8 &&
+    buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  ) {
+    return "image/png";
+  }
+  if (buffer.length >= 6) {
+    const header = buffer.subarray(0, 6).toString("ascii");
+    if (header === "GIF87a" || header === "GIF89a") return "image/gif";
+  }
+  if (
+    buffer.length >= 12 &&
+    buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
+    buffer.subarray(8, 12).toString("ascii") === "WEBP"
+  ) {
+    return "image/webp";
+  }
+  return null;
+}
+
 /**
  * Envoie la photo d'un produit dans un bucket public Supabase Storage.
  *
@@ -66,6 +91,18 @@ async function uploadImage(file: File, folder: string): Promise<string> {
     );
   }
 
+  const body = Buffer.from(await file.arrayBuffer());
+
+  // Le type MIME annoncé par le navigateur n'est pas une preuve : on lit la
+  // signature binaire du fichier. Un HTML ou un SVG renommé en .jpg est refusé
+  // avant tout envoi vers le bucket public.
+  const detected = detectImageType(body);
+  if (!detected || detected !== file.type) {
+    throw new ImageUploadError(
+      "Le fichier n'est pas une vraie image JPG, PNG, WebP ou GIF (contenu différent de son extension).",
+    );
+  }
+
   const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/+$/, "");
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceKey) {
@@ -77,7 +114,6 @@ async function uploadImage(file: File, folder: string): Promise<string> {
 
   const bucket = process.env.SUPABASE_STORAGE_BUCKET?.trim() || "products";
   const objectPath = `${folder}/${new Date().toISOString().slice(0, 10)}/${randomUUID()}.${extension}`;
-  const body = Buffer.from(await file.arrayBuffer());
   const endpoint = `${supabaseUrl}/storage/v1/object/${bucket}/${objectPath}`;
 
   const upload = () =>

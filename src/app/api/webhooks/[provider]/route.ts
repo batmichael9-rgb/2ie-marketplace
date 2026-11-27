@@ -73,7 +73,9 @@ export async function POST(
     return NextResponse.json({ received: true, ignored: "payment_not_found" });
   }
 
-  if (parsed.notifyToken && !signatureValid) {
+  // Le jeton de notification est obligatoire : un webhook sans jeton (ou avec
+  // un jeton inconnu) ne déclenche jamais de vérification ni de crédit.
+  if (!parsed.notifyToken || !signatureValid) {
     await db.paymentEvent.update({
       where: { id: eventId },
       data: { processingError: "invalid_notify_token" },

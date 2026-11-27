@@ -20,7 +20,21 @@ function extractToken(body: Record<string, unknown>): string | null {
   return token ? String(token) : null;
 }
 
+/** Secret partagé facultatif, identique à celui du webhook Payin. */
+function hasValidWebhookSecret(request: Request): boolean {
+  const secret = process.env.MONEYFUSION_WEBHOOK_SECRET;
+  if (!secret) return true;
+
+  const header = request.headers.get("x-webhook-secret");
+  const authorization = request.headers.get("authorization");
+  return header === secret || authorization === `Bearer ${secret}`;
+}
+
 export async function POST(request: Request) {
+  if (!hasValidWebhookSecret(request)) {
+    return json({ error: "invalid_signature" }, 401);
+  }
+
   const rawBody = await request.text();
   const body = parseMoneyFusionWebhookBody(rawBody);
   if (!body) return json({ received: true, ignored: "unparsable" });
@@ -56,22 +70,12 @@ export async function POST(request: Request) {
   }
 
   // Statut canonique : on interroge Money Fusion plutôt que de faire confiance
-  // au seul corps de la notification.
+  // au seul corps de la notification. Un appelant qui forgerait « completed »
+  // ne peut donc jamais marquer un reversement comme payé.
   const verified = await checkPayoutStatus(token);
-  const rawStatus = String(body.statut ?? body.status ?? "").toLowerCase();
 
-  // La vérification serveur prime : un webhook ne peut ni contredire un
-  // virement confirmé, ni transformer une annulation en succès. Le corps de la
-  // notification ne sert que si Money Fusion n'a pas encore de statut définitif.
-  const completed =
-    verified.status === "PAID" ||
-    (verified.status === "PENDING" &&
-      (event.includes("completed") || rawStatus === "completed" || rawStatus === "paid"));
-
-  const cancelled =
-    verified.status === "CANCELLED" ||
-    (verified.status === "PENDING" &&
-      (event.includes("cancel") || rawStatus === "cancelled" || rawStatus === "canceled"));
+  const completed = verified.status === "PAID";
+  const cancelled = verified.status === "CANCELLED";
 
   if (completed && order.payoutStatus !== "PAID") {
     await db.order.update({
@@ -105,9 +109,11 @@ export async function POST(request: Request) {
     return json({ received: true, outcome: "FAILED" });
   }
 
+  // Statut encore indécis : l'événement reste non traité pour qu'un nouvel
+  // appel de Money Fusion (ou la réconciliation 48 h) puisse le finaliser.
   await db.paymentEvent.updateMany({
     where: { provider: "MONEYFUSION_PAYOUT", providerEventId: eventKey },
-    data: { processedAt: new Date() },
+    data: { processingError: "payout_pending" },
   });
 
   return json({ received: true, outcome: "PENDING" });

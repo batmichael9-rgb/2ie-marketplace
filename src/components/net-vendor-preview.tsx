@@ -44,13 +44,15 @@ export function NetVendorPreview({
         inputMode="numeric"
         min={25}
         max={10_000_000}
-        step={25}
+        step={1}
         placeholder="1500"
         value={value}
         onChange={(event) => setValue(event.target.value)}
         required
       />
-      <p className="mt-1 text-xs text-slate-500">Entier, sans centimes.</p>
+      <p className="mt-1 text-xs text-slate-500">
+        Tout montant entier, sans centimes (125, 350, 1 275 FCFA…).
+      </p>
       <p
         className="mt-1.5 rounded-lg bg-teal-50 px-2 py-1.5 text-xs font-medium text-teal-900"
         aria-live="polite"

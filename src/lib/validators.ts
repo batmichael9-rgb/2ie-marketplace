@@ -176,8 +176,8 @@ const optionalClockTime = z.preprocess(
 
 export const vendorProfileSchema = z.object({
   shopName: z.string().trim().min(2, "Nom de boutique trop court").max(60),
-  description: z.string().trim().max(500).optional().or(z.literal("")),
-  roomNumber: z.string().trim().max(30).optional().or(z.literal("")),
+  description: optionalText(500),
+  roomNumber: optionalText(30),
   momoNumber: optionalMobileMoneyPhone,
   momoOperator: mobileMoneyProvider,
   campus: campusSchema,
@@ -195,20 +195,33 @@ export const payoutAccountsSchema = z.object({
   preferredPayoutMethod: payoutMethod.default("ORANGE_MONEY"),
 });
 
-/** Formulaire de la page /profil : compte client, complété par la boutique si vendeur. */
+/**
+ * Formulaire de la page /profil : compte client, complété par la boutique si
+ * vendeur.
+ *
+ * `FormData.get()` renvoie `null` pour un champ absent du formulaire (le nom de
+ * boutique et le campus n'existent pas pour un client, par exemple). Un
+ * `.optional()` simple refuserait `null` avec le message générique
+ * « Invalid input » : chaque champ facultatif est donc normalisé en chaîne vide
+ * avant validation. Les numéros burkinabè sont acceptés avec espaces, tirets ou
+ * indicatif (+226 70 00 00 00, 226..., 8 chiffres locaux) puis normalisés.
+ */
 export const profileSchema = z.object({
   fullName: z.string().trim().min(2, "Indique ton nom complet (2 caractères minimum).").max(80),
   email: emailSchema,
-  phone: phone.optional().or(z.literal("")),
-  shopName: z.string().trim().max(60).optional().or(z.literal("")),
-  campus: z.string().optional().or(z.literal("")),
-  mobileMoneyNumber: phone.optional().or(z.literal("")),
+  phone: optionalBfPhone,
+  shopName: optionalText(60),
+  campus: z.preprocess(
+    (value) => (value == null ? "" : String(value).trim()),
+    z.string().max(80, "Campus invalide."),
+  ),
+  mobileMoneyNumber: optionalMobileMoneyPhone,
   mobileMoneyProvider: mobileMoneyProvider,
 });
 
 /** Bloc Mobile Money seul (page Paramètres, Mon profil, Espace vendeur). */
 export const mobileMoneySchema = z.object({
-  mobileMoneyNumber: phone.optional().or(z.literal("")),
+  mobileMoneyNumber: optionalMobileMoneyPhone,
   mobileMoneyProvider: mobileMoneyProvider,
 });
 

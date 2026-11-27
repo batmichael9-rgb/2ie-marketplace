@@ -17,14 +17,7 @@ const OFFLINE_URL = "/offline.html";
 // chunks obsolètes et casserait le HMR. Les notifications Push restent actives.
 const IS_DEV_HOST =
   self.location.hostname === "localhost" || self.location.hostname === "127.0.0.1";
-const PRECACHE = [
-  OFFLINE_URL,
-  "/manifest.json",
-  "/icon.jpg",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
-  "/icons/maskable-512.png",
-];
+const PRECACHE = [OFFLINE_URL, "/manifest.json", "/icon.jpg", "/logo.jpg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -78,9 +71,9 @@ self.addEventListener("fetch", (event) => {
   // Assets versionnés et images : cache d'abord.
   const isStatic =
     url.pathname.startsWith("/_next/static/") ||
-    url.pathname.startsWith("/icons/") ||
     url.pathname.startsWith("/produits/") ||
-    url.pathname === "/icon.jpg";
+    url.pathname === "/icon.jpg" ||
+    url.pathname === "/logo.jpg";
 
   if (isStatic) {
     event.respondWith(
@@ -112,8 +105,8 @@ self.addEventListener("push", (event) => {
   const title = payload.title || "2iE Market";
   const options = {
     body: payload.body || "Nouvelle activité sur 2iE Market.",
-    icon: payload.icon || "/icons/icon-192.png",
-    badge: "/icons/icon-192.png",
+    icon: payload.icon || "/icon.jpg",
+    badge: "/icon.jpg",
     data: { url: payload.url || "/" },
     // Un même tag remplace la notification précédente (pas d'empilement) et
     // renotify force la bannière + le son/vibreur à chaque nouveau message.

@@ -12,6 +12,26 @@ function profileErrorUrl(message: string): string {
   return `/profil?erreur=${encodeURIComponent(message)}`;
 }
 
+/** Libellé lisible du champ fautif, pour un message d'erreur compréhensible. */
+const PROFILE_FIELD_LABELS: Record<string, string> = {
+  fullName: "Nom complet",
+  email: "Email",
+  phone: "Téléphone",
+  shopName: "Nom de la boutique",
+  campus: "Campus",
+  mobileMoneyNumber: "Numéro Mobile Money",
+  mobileMoneyProvider: "Opérateur Mobile Money",
+};
+
+/** Message précis (« Téléphone : ... ») au lieu du générique « Invalid input ». */
+function firstProfileIssue(error: { issues: { path: (string | number | symbol)[]; message: string }[] }): string {
+  const issue = error.issues[0];
+  if (!issue) return "Formulaire incomplet.";
+  const field = issue.path.find((part): part is string => typeof part === "string") ?? "";
+  const label = PROFILE_FIELD_LABELS[field];
+  return label ? `${label} : ${issue.message}` : issue.message;
+}
+
 /**
  * Enregistrement de la page /profil.
  *
@@ -32,7 +52,7 @@ export async function updateProfileAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect(profileErrorUrl(parsed.error.issues[0]?.message ?? "Formulaire incomplet"));
+    redirect(profileErrorUrl(firstProfileIssue(parsed.error)));
   }
 
   const data = parsed.data;
@@ -107,7 +127,7 @@ export async function updateMobileMoneyAction(formData: FormData) {
   if (!parsed.success) {
     redirect(
       `/parametres?erreur=${encodeURIComponent(
-        parsed.error.issues[0]?.message ?? "Numéro Mobile Money invalide.",
+        firstProfileIssue(parsed.error),
       )}#mobile-money`,
     );
   }

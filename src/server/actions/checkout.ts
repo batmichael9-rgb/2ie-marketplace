@@ -159,8 +159,14 @@ export async function createOrderAction(formData: FormData) {
   const reference = generateOrderReference();
   const merchantRef = `${reference}-1`;
 
+  // Un code de partage ne peut créditer que le produit et la boutique qui l'ont
+  // émis : sinon n'importe quel vendeur pourrait gonfler les conversions d'un
+  // concurrent en réutilisant son code.
   const shareLink = data.shareCode
-    ? await db.shareLink.findUnique({ where: { code: data.shareCode }, select: { id: true } })
+    ? await db.shareLink.findFirst({
+        where: { code: data.shareCode, productId: product.id, vendorId: product.vendorId },
+        select: { id: true },
+      })
     : null;
 
   let merchantReference = merchantRef;

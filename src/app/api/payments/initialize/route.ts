@@ -135,8 +135,12 @@ export async function POST(request: Request) {
   const reference = generateOrderReference();
   const merchantRef = `${reference}-1`;
 
+  // Le code de partage doit appartenir à ce produit et à cette boutique.
   const shareLink = data.shareCode
-    ? await db.shareLink.findUnique({ where: { code: data.shareCode }, select: { id: true } })
+    ? await db.shareLink.findFirst({
+        where: { code: data.shareCode, productId: product.id, vendorId: product.vendorId },
+        select: { id: true },
+      })
     : null;
 
   let orderId = "";

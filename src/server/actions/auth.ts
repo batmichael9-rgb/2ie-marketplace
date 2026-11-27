@@ -343,6 +343,19 @@ export async function loginAction(formData: FormData) {
 
   const { email, password, next } = parsed.data;
 
+  // Anti-force brute : limite par adresse IP et par compte. Un attaquant ne
+  // peut pas tester des milliers de mots de passe sur une même adresse.
+  const ip = await getClientIp();
+  const byIp = rateLimit(`login:ip:${ip}`, 20, 10 * 60_000);
+  const byEmail = rateLimit(`login:email:${email}`, 8, 10 * 60_000);
+  if (!byIp.ok || !byEmail.ok) {
+    redirect(
+      `/connexion?erreur=${encodeURIComponent(
+        "Trop de tentatives de connexion. Patiente quelques minutes avant de réessayer.",
+      )}`,
+    );
+  }
+
   const user = await db.user.findUnique({ where: { email } });
 
   if (!user || !user.password) {

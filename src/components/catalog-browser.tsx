@@ -629,7 +629,7 @@ export function CatalogBrowser({
                   <p className="mt-1 text-sm text-slate-600">
                     {hasFilters
                       ? "Essaie une autre catégorie, un autre campus ou un autre mot-clé."
-                      : "Le catalogue est vide. Lance `npm run db:seed` pour charger les données de démonstration."}
+                      : "Les premières boutiques du campus arrivent très bientôt !"}
                   </p>
                   {hasFilters ? (
                     <button type="button" onClick={resetFilters} className="btn-secondary mt-4">

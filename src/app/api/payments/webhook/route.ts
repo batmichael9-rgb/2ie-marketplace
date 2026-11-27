@@ -29,40 +29,49 @@ function extractToken(body: Record<string, unknown>): string | null {
   return token ? String(token) : null;
 }
 
-function extractOrderId(body: Record<string, unknown>): string | null {
-  const info = Array.isArray(body.personal_Info) ? body.personal_Info[0] : null;
-  if (!info || typeof info !== "object") return null;
-  const orderId = (info as Record<string, unknown>).orderId;
-  return orderId ? String(orderId) : null;
+/**
+ * Secret partagé facultatif (MONEYFUSION_WEBHOOK_SECRET).
+ *
+ * Money Fusion n'appose pas de signature cryptographique : quand le secret est
+ * configuré, il doit être présenté dans `x-webhook-secret` (ou en Bearer).
+ * L'absence de secret ne désactive jamais la vérification serveur du statut,
+ * qui reste la seule preuve de paiement acceptée.
+ */
+function hasValidWebhookSecret(request: Request): boolean {
+  const secret = process.env.MONEYFUSION_WEBHOOK_SECRET;
+  if (!secret) return true;
+
+  const header = request.headers.get("x-webhook-secret");
+  const authorization = request.headers.get("authorization");
+  return header === secret || authorization === `Bearer ${secret}`;
 }
 
 export async function POST(request: Request) {
+  if (!hasValidWebhookSecret(request)) {
+    return json({ error: "invalid_signature" }, 401);
+  }
+
   const rawBody = await request.text();
   const body = parseMoneyFusionWebhookBody(rawBody);
   if (!body) {
     return json({ received: true, ignored: "unparsable" });
   }
 
+  // Seul le token Payin identifie la commande. Un `personal_Info.orderId`
+  // fourni par l'appelant ne suffit jamais : sinon n'importe qui connaissant
+  // un identifiant de commande pourrait la déclarer payée.
   const token = extractToken(body);
-  const orderId = extractOrderId(body);
+  if (!token) {
+    return json({ received: true, ignored: "missing_token" });
+  }
 
-  const order = token
-    ? await db.order.findFirst({
-        where: { tokenPay: token },
-        include: {
-          payments: { orderBy: { createdAt: "desc" }, take: 1 },
-          vendor: { select: { userId: true } },
-        },
-      })
-    : orderId
-      ? await db.order.findUnique({
-          where: { id: orderId },
-          include: {
-            payments: { orderBy: { createdAt: "desc" }, take: 1 },
-            vendor: { select: { userId: true } },
-          },
-        })
-      : null;
+  const order = await db.order.findFirst({
+    where: { tokenPay: token },
+    include: {
+      payments: { orderBy: { createdAt: "desc" }, take: 1 },
+      vendor: { select: { userId: true } },
+    },
+  });
 
   if (!order) {
     return json({ received: true, ignored: "order_not_found" });
@@ -71,6 +80,12 @@ export async function POST(request: Request) {
   const payment = order.payments[0];
   if (!payment) {
     return json({ received: true, ignored: "payment_not_found" });
+  }
+
+  // Le token de la notification doit être celui réellement émis pour ce
+  // paiement : un token inventé ne peut pas cibler une commande existante.
+  if (payment.providerTxnId && payment.providerTxnId !== token) {
+    return json({ received: true, ignored: "token_mismatch" });
   }
 
   const event = body.event ? String(body.event) : "";
@@ -144,16 +159,22 @@ export async function POST(request: Request) {
     return json({ received: true, outcome });
   }
 
-  // --- completed : vérification serveur avant crédit ----------------------
-  const verified = token ? await checkPaymentStatus(token) : null;
+  // --- completed : vérification serveur obligatoire avant crédit ----------
+  // Le corps de la notification n'est jamais une preuve de paiement. Sans
+  // confirmation SUCCEEDED de Money Fusion, on ne crédite pas la commande.
+  const verified = await checkPaymentStatus(token);
 
-  if (verified && (verified.status === "FAILED" || verified.status === "EXPIRED")) {
-    await markProcessed("payment_not_confirmed");
+  if (verified.status !== "SUCCEEDED") {
+    await markProcessed(
+      verified.status === "FAILED" || verified.status === "EXPIRED"
+        ? "payment_not_confirmed"
+        : "payment_still_pending",
+    );
     return json({ received: true, ignored: "payment_not_confirmed" });
   }
 
   if (
-    verified?.amountXof != null &&
+    verified.amountXof != null &&
     Number(verified.amountXof) !== Number(order.grossAmount || order.totalXof)
   ) {
     await markProcessed("amount_mismatch");
@@ -161,8 +182,8 @@ export async function POST(request: Request) {
   }
 
   const outcome = await applyPaymentStatus(payment.merchantRef, "SUCCEEDED", {
-    providerTxnId: token ?? payment.providerTxnId,
-    raw: verified?.raw ?? body,
+    providerTxnId: token,
+    raw: verified.raw,
   });
 
   if (outcome === "PAID") {

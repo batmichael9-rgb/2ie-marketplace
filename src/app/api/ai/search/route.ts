@@ -6,6 +6,7 @@ import {
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { recordPreferenceSignal } from "@/lib/preferences";
+import { getClientIp, rateLimit } from "@/lib/rate-limit";
 
 /**
  * Recherche en langage naturel.
@@ -31,6 +32,28 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "Décris ce que tu cherches en quelques mots." },
       { status: 400 },
+    );
+  }
+
+  if (query.length > 300) {
+    return NextResponse.json(
+      { error: "Recherche trop longue : 300 caractères maximum." },
+      { status: 400 },
+    );
+  }
+
+  // La recherche appelle éventuellement un modèle payant : on limite les
+  // rafales par IP pour éviter un déni de service ou une facture incontrôlée.
+  const ip = await getClientIp();
+  const limit = rateLimit(`ai-search:${ip}`, 30, 60_000);
+  if (!limit.ok) {
+    return NextResponse.json(
+      {
+        error: `Trop de recherches en peu de temps. Patiente ${limit.retryAfterSeconds} seconde${
+          limit.retryAfterSeconds > 1 ? "s" : ""
+        }.`,
+      },
+      { status: 429 },
     );
   }
 

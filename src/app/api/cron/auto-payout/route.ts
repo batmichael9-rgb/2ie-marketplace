@@ -20,6 +20,11 @@ export async function GET(request: Request) {
     if (authorization !== `Bearer ${secret}`) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
+  } else if (process.env.NODE_ENV === "production") {
+    // En production, une route de cron ouverte permettrait à n'importe qui de
+    // déclencher les virements éligibles : le secret est obligatoire.
+    console.error("CRON_SECRET manquant : /api/cron/auto-payout est désactivé.");
+    return NextResponse.json({ error: "cron_not_configured" }, { status: 503 });
   }
 
   const result = await autoReleaseDeliveredOrders();
