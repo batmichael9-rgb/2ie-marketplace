@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { checkPayoutStatus } from "@/lib/payments/payout";
 import { parseMoneyFusionWebhookBody } from "@/lib/payments/moneyfusion";
+import { verifyWebhookSecret } from "@/lib/payments/webhook-auth";
 
 /**
  * Notification de reversement vendeur (Payout) : POST /api/payouts/webhook
@@ -20,19 +21,12 @@ function extractToken(body: Record<string, unknown>): string | null {
   return token ? String(token) : null;
 }
 
-/** Secret partagé facultatif, identique à celui du webhook Payin. */
-function hasValidWebhookSecret(request: Request): boolean {
-  const secret = process.env.MONEYFUSION_WEBHOOK_SECRET;
-  if (!secret) return true;
-
-  const header = request.headers.get("x-webhook-secret");
-  const authorization = request.headers.get("authorization");
-  return header === secret || authorization === `Bearer ${secret}`;
-}
-
 export async function POST(request: Request) {
-  if (!hasValidWebhookSecret(request)) {
-    return json({ error: "invalid_signature" }, 401);
+  // Même règle que le webhook Payin : secret obligatoire en production,
+  // vérifié en temps constant.
+  const auth = verifyWebhookSecret(request);
+  if (!auth.ok) {
+    return json({ error: auth.error }, auth.status);
   }
 
   const rawBody = await request.text();

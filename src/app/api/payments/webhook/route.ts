@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { computeFeeBreakdown, formatXof } from "@/lib/money";
 import { applyPaymentStatus } from "@/lib/payments/apply";
 import { checkPaymentStatus, parseMoneyFusionWebhookBody } from "@/lib/payments/moneyfusion";
+import { verifyWebhookSecret } from "@/lib/payments/webhook-auth";
 import { notifyUserSafely } from "@/lib/push";
 
 /**
@@ -15,9 +16,12 @@ import { notifyUserSafely } from "@/lib/push";
  * Pipeline :
  *  1. le token Payin (`tokenPay`) identifie la commande, jamais le montant ;
  *  2. l'événement est dédupliqué dans PaymentEvent ;
- *  3. le statut est réinterrogé côté serveur (`/paiementNotif/{token}`) ;
+ *  3. le statut est réinterrogé côté serveur (`/paiementNotif/{token}`) avant
+ *     toute transition, succès comme échec ou annulation ;
  *  4. l'application à la commande est idempotente : un rejeu ne crédite qu'une
  *     fois et ne reverse jamais deux fois.
+ *
+ * `MONEYFUSION_WEBHOOK_SECRET` est obligatoire en production (503 sinon).
  */
 
 function json(body: Record<string, unknown>, status = 200) {
@@ -29,26 +33,11 @@ function extractToken(body: Record<string, unknown>): string | null {
   return token ? String(token) : null;
 }
 
-/**
- * Secret partagé facultatif (MONEYFUSION_WEBHOOK_SECRET).
- *
- * Money Fusion n'appose pas de signature cryptographique : quand le secret est
- * configuré, il doit être présenté dans `x-webhook-secret` (ou en Bearer).
- * L'absence de secret ne désactive jamais la vérification serveur du statut,
- * qui reste la seule preuve de paiement acceptée.
- */
-function hasValidWebhookSecret(request: Request): boolean {
-  const secret = process.env.MONEYFUSION_WEBHOOK_SECRET;
-  if (!secret) return true;
-
-  const header = request.headers.get("x-webhook-secret");
-  const authorization = request.headers.get("authorization");
-  return header === secret || authorization === `Bearer ${secret}`;
-}
-
 export async function POST(request: Request) {
-  if (!hasValidWebhookSecret(request)) {
-    return json({ error: "invalid_signature" }, 401);
+  // Secret obligatoire en production, vérifié en temps constant.
+  const auth = verifyWebhookSecret(request);
+  if (!auth.ok) {
+    return json({ error: auth.error }, auth.status);
   }
 
   const rawBody = await request.text();
@@ -144,32 +133,33 @@ export async function POST(request: Request) {
     return json({ received: true, ignored: "unhandled_event" });
   }
 
-  if (pending) {
-    await applyPaymentStatus(payment.merchantRef, "PENDING", { raw: body });
-    await markProcessed();
-    return json({ received: true, outcome: "PENDING" });
-  }
+  // --- vérification serveur obligatoire, quel que soit l'événement --------
+  // Le corps de la notification n'est jamais une preuve de paiement : succès,
+  // échec et annulation sont tous relus depuis l'API Money Fusion. Un appelant
+  // qui forgerait « cancelled » ne peut donc pas annuler une commande payée.
+  const verified = await checkPaymentStatus(token);
 
-  if (cancelled) {
-    const outcome = await applyPaymentStatus(payment.merchantRef, "EXPIRED", {
-      raw: body,
-      message: "Paiement annulé par l'acheteur",
+  if (verified.status === "FAILED" || verified.status === "EXPIRED" || verified.status === "REFUNDED") {
+    const outcome = await applyPaymentStatus(payment.merchantRef, verified.status, {
+      raw: verified.raw,
+      message:
+        verified.status === "EXPIRED"
+          ? "Paiement expiré ou annulé côté Money Fusion"
+          : verified.status === "REFUNDED"
+            ? "Paiement remboursé côté Money Fusion"
+            : "Paiement refusé côté Money Fusion",
     });
     await markProcessed();
     return json({ received: true, outcome });
   }
 
-  // --- completed : vérification serveur obligatoire avant crédit ----------
-  // Le corps de la notification n'est jamais une preuve de paiement. Sans
-  // confirmation SUCCEEDED de Money Fusion, on ne crédite pas la commande.
-  const verified = await checkPaymentStatus(token);
-
   if (verified.status !== "SUCCEEDED") {
-    await markProcessed(
-      verified.status === "FAILED" || verified.status === "EXPIRED"
-        ? "payment_not_confirmed"
-        : "payment_still_pending",
-    );
+    if (pending) {
+      const outcome = await applyPaymentStatus(payment.merchantRef, "PENDING", { raw: body });
+      await markProcessed();
+      return json({ received: true, outcome });
+    }
+    await markProcessed("payment_still_pending");
     return json({ received: true, ignored: "payment_not_confirmed" });
   }
 

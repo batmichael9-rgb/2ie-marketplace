@@ -7,8 +7,9 @@
  * Vérifie :
  *   1. le seed refuse de s'exécuter en production sans ALLOW_PROD_SEED=true ;
  *   2. /api/cron/auto-payout refuse un appel sans CRON_SECRET (401) ;
- *   3. un webhook Money Fusion non signé est rejeté (401) et un faux paiement
- *      signé n'est jamais crédité ;
+ *   3. un webhook Money Fusion non signé est rejeté (401), un faux paiement
+ *      signé n'est jamais crédité, et sans MONEYFUSION_WEBHOOK_SECRET la
+ *      production refuse les webhooks (503) ;
  *   4. aucun secret serveur (SUPABASE_SERVICE_ROLE_KEY) n'est présent dans le
  *      bundle client .next/static.
  *
@@ -17,6 +18,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const ROOT = process.cwd();
 const PORT = Number(process.env.SECURITY_CHECK_PORT ?? 3127);
@@ -105,7 +107,75 @@ function checkSeedGuard() {
   );
 }
 
-// --- 3. Routes HTTP ---------------------------------------------------------
+// --- 3. Secret webhook obligatoire en production ----------------------------
+function checkWebhookSecretPolicy() {
+  const moduleUrl = pathToFileURL(
+    join(ROOT, "src", "lib", "payments", "webhook-auth.ts"),
+  ).href;
+
+  const code = `
+import { verifyWebhookSecret } from ${JSON.stringify(moduleUrl)};
+const request = (headers) => ({ headers: new Headers(headers) });
+const cases = [
+  ["production_sans_secret", "production", "", {}],
+  ["production_mauvais_secret", "production", "s3cret", { "x-webhook-secret": "nope" }],
+  ["production_bearer_valide", "production", "s3cret", { authorization: "Bearer s3cret" }],
+  ["developpement_sans_secret", "development", "", {}],
+];
+const results = cases.map(([label, nodeEnv, secret, headers]) => {
+  process.env.NODE_ENV = nodeEnv;
+  process.env.MONEYFUSION_WEBHOOK_SECRET = secret;
+  return [label, verifyWebhookSecret(request(headers))];
+});
+console.log(JSON.stringify(results));
+`;
+
+  const result = spawnSync(
+    process.execPath,
+    ["--import", "tsx", "--input-type=module", "-e", code],
+    { cwd: ROOT, encoding: "utf8", timeout: 60_000 },
+  );
+
+  if (result.status !== 0) {
+    check(
+      "politique de secret des webhooks évaluable",
+      false,
+      `${result.stdout ?? ""}${result.stderr ?? ""}`.trim().slice(-300),
+    );
+    return;
+  }
+
+  let results = [];
+  try {
+    results = JSON.parse(result.stdout.trim().split(/\r?\n/).pop() ?? "[]");
+  } catch {
+    results = [];
+  }
+  const byLabel = new Map(results);
+
+  const noSecret = byLabel.get("production_sans_secret");
+  check(
+    "webhook sans MONEYFUSION_WEBHOOK_SECRET en production → 503",
+    noSecret?.ok === false && noSecret.status === 503,
+    JSON.stringify(noSecret),
+  );
+
+  const wrongSecret = byLabel.get("production_mauvais_secret");
+  check(
+    "webhook avec un mauvais secret en production → 401",
+    wrongSecret?.ok === false && wrongSecret.status === 401,
+    JSON.stringify(wrongSecret),
+  );
+
+  const bearer = byLabel.get("production_bearer_valide");
+  check(
+    "webhook avec le bon secret (Bearer) accepté",
+    bearer?.ok === true,
+    JSON.stringify(bearer),
+  );
+}
+
+// --- 4. Routes HTTP ---------------------------------------------------------
 async function waitForServer(server, logs) {
   const deadline = Date.now() + 90_000;
   while (Date.now() < deadline) {
@@ -177,9 +247,20 @@ async function checkHttp() {
       body: JSON.stringify(fakePayment),
     });
     check(
-      "webhook non signé → 401",
+      "webhook Payin non signé → 401",
       unsigned.status === 401,
       `HTTP ${unsigned.status}`,
+    );
+
+    const unsignedPayout = await fetch(`${BASE}/api/payouts/webhook`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ event: "payout.session.completed", tokenPay: "jeton-inexistant" }),
+    });
+    check(
+      "webhook Payout non signé → 401",
+      unsignedPayout.status === 401,
+      `HTTP ${unsignedPayout.status}`,
     );
 
     const signed = await fetch(`${BASE}/api/payments/webhook`, {
@@ -209,6 +290,7 @@ async function checkHttp() {
 
 checkClientBundle();
 checkSeedGuard();
+checkWebhookSecretPolicy();
 
 try {
   await checkHttp();

@@ -170,6 +170,7 @@ Pour activer les paiements en ligne et les reversements vendeur :
 2. Récupérer la clé privée (`MONEYFUSION_PRIVATE_KEY`) et l'URL de Payin (`MONEYFUSION_API_URL`)
 3. Définir `FIXIE_URL` en production : tous les appels sortent par ces IP fixes, à autoriser côté Money Fusion
 4. Renseigner les URL de notification `https://<votre-domaine>/api/payments/webhook` (Payin) et `https://<votre-domaine>/api/payouts/webhook` (Payout)
+   - Définir **obligatoirement** `MONEYFUSION_WEBHOOK_SECRET` en production (sans lui, les deux webhooks répondent 503). Money Fusion doit envoyer l'en-tête `x-webhook-secret` correspondant, ou `Authorization: Bearer <secret>`
 5. Exécuter les migrations `prisma/migrations/20261125120000_moneyfusion_v1/migration.sql` puis `prisma/migrations/20261125160000_auto_payout/migration.sql` dans l'éditeur SQL Supabase
 6. (Recommandé) Définir `CRON_SECRET` : le cron quotidien `/api/cron/auto-payout` (configuré dans `vercel.json`) libère automatiquement la part nette du vendeur 48 h après une livraison non confirmée
 
@@ -269,7 +270,14 @@ npm run db:reset
 
 # Ouvrir Prisma Studio (interface DB)
 npm run db:studio
+
+# Tests de non-régression sécurité (après `npm run build`)
+npm run test:security
 ```
+
+La CI GitHub Actions (`.github/workflows/ci.yml`) exécute ces contrôles à
+chaque `push` et `pull_request` sur `main` : `npx tsc --noEmit`, `npm run build`
+et `npm run test:security`, sans aucun secret réel.
 
 ## 🔧 Migration de l'ancienne version
 

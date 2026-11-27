@@ -70,7 +70,18 @@ L'application est majoritairement saine : les prix et frais sont recalculés cô
     - Correctif : table PostgreSQL `RateLimitCounter` et UPSERT atomique sur une clé incluant la fenêtre (`src/lib/rate-limit.ts`), avec repli mémoire journalisé uniquement si la base est injoignable. Migration : `prisma/migrations/20261127120000_rate_limit_counter/migration.sql`.
 
 15. **Tests de non-régression sécurité**
-    - `npm run test:security` démarre le build de production et vérifie : seed bloqué en production, cron sans `CRON_SECRET` → 401, webhook non signé → 401, faux paiement jamais crédité, absence de `SUPABASE_SERVICE_ROLE_KEY` dans `.next/static`.
+    - `npm run test:security` démarre le build de production et vérifie : seed bloqué en production, cron sans `CRON_SECRET` → 401, webhook Payin et Payout non signés → 401, webhook sans `MONEYFUSION_WEBHOOK_SECRET` en production → 503, faux paiement jamais crédité, absence de `SUPABASE_SERVICE_ROLE_KEY` dans `.next/static`.
+
+16. **SEC-08 — Ambiguïté du secret webhook et repli permissif**
+    - `MONEYFUSION_WEBHOOK_SECRET` était facultatif partout : un déploiement sans cette variable acceptait n'importe quel appel, et les deux webhooks Payin/Payout dupliquaient la logique de vérification.
+    - Correctif : vérification unique dans `src/lib/payments/webhook-auth.ts`, comparaison en temps constant (`timingSafeEqual`), secret **obligatoire en production** (503 `webhook_not_configured` s'il manque), utilisé par `/api/payments/webhook` et `/api/payouts/webhook`. Repli ouvert réservé au développement local.
+
+17. **SEC-09 — Transitions d'état pilotées par l'événement reçu**
+    - Le webhook Payin appliquait `PENDING` et `EXPIRED` directement depuis le corps de la notification ; seule la branche `completed` était revérifiée. Un appelant signé pouvait donc annuler une commande ou la remettre en attente.
+    - Correctif : le statut est réinterrogé (`/paiementNotif/{token}`) avant **toute** transition. Succès, échec, expiration, remboursement et attente sont tous dérivés de la réponse Money Fusion ; le corps du webhook ne sert plus qu'à décider s'il faut vérifier.
+
+18. **Intégration continue**
+    - `.github/workflows/ci.yml` exécute à chaque `push` et `pull_request` sur `main` : `npm ci`, `npx tsc --noEmit`, `npm run build` puis `npm run test:security`, avec des variables factices (aucun secret requis).
 
 ## Points vérifiés sans faille
 
@@ -86,4 +97,4 @@ L'application est majoritairement saine : les prix et frais sont recalculés cô
 - **RLS Supabase** : l'application n'utilise que Prisma côté serveur (aucun client Supabase public). Les politiques RLS ne s'appliquent donc pas au flux actuel ; si un client Supabase `anon` est introduit, il faudra activer RLS sur `profiles`, `shops`, `products`, `orders`, `reviews`, `messages` et interdire toute écriture hors Edge Function/service role.
 - Le limiteur de débit est persistant en PostgreSQL (partagé entre instances). Il applique une fenêtre fixe : un pic en limite de fenêtre reste possible, sans permettre de contourner la limite entre instances.
 - Le changement d'email depuis `/profil` ne demande pas de revérification : à renforcer si l'email devient un identifiant sensible.
-- Configurer `MONEYFUSION_WEBHOOK_SECRET` en production ; la vérification serveur reste la protection principale.
+- `MONEYFUSION_WEBHOOK_SECRET` est obligatoire en production : sans lui, les deux webhooks Money Fusion répondent 503. La vérification serveur du statut reste néanmoins la protection principale.
